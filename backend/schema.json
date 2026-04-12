@@ -1,0 +1,30 @@
+{
+  "$comment": "Synapse wiki knowledge shape — enforced before every save.",
+  "required": ["title", "summary", "key_points", "tags", "related_topics"],
+  "rules": {
+    "title_max_length": 200,
+    "title_must_not_be_blank": true,
+    "tags_must_be_lowercase_snake": true,
+    "key_points_must_be_string_list": true,
+    "related_topics_must_be_string_list": true
+  },
+  "properties": {
+    "title": { "type": "string", "description": "Concise topic heading" },
+    "summary": { "type": "string", "description": "Short prose overview" },
+    "key_points": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Bullet facts as plain strings"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+      "description": "Lowercase labels, underscores not spaces"
+    },
+    "related_topics": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Cross-links to other topics"
+    }
+  }
+}
