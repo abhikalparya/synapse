@@ -59,6 +59,24 @@ def get_topic_by_id(topic_id: str) -> dict | None:
     return None
 
 
+def update_topic(topic_id: str, **patch: object) -> dict | None:
+    """Apply ``patch`` fields to an existing topic and persist in place; returns the updated
+    dict (with ``path``), or None if no topic with that id exists."""
+    row = get_topic_by_id(topic_id)
+    if row is None:
+        return None
+    path = row["path"]
+    body = {k: v for k, v in row.items() if k != "path"}
+    body.update(patch)
+    body["updated_at"] = datetime.now(timezone.utc)
+    topic = Topic.model_validate(body)
+    payload = topic.model_dump(mode="json")
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out = dict(payload)
+    out["path"] = path
+    return out
+
+
 def save_topic(data: TopicCreate) -> dict:
     """Validate and persist a new topic; returns the stored dict (with a ``path`` key)."""
     _ensure_topics_dir()

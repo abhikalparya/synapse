@@ -4,12 +4,23 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { MutableRefObject } from "react";
 import { BIRTH_TOTAL_MS, birthVisual } from "../graphBirth";
 import { QUERY_PULSE_TOTAL_MS, queryPulseScale } from "../graphQueryPulse";
-import type { GraphData, GraphLink, GraphNode } from "../types";
-import { groupColor, linkKey, neighborSets, nodeRadius } from "../graphUtils";
+import type { GraphData, GraphLink, GraphNode, TopicStatus } from "../types";
+import { linkKey, neighborSets, nodeRadius } from "../graphUtils";
 
 const NO_BIRTH: readonly string[] = [];
 const NO_PATH_IDS: ReadonlySet<string> = new Set();
 const PATH_HIGHLIGHT_COLOR = "#4fd1ff";
+
+const STATUS_COLORS: Record<TopicStatus, string> = {
+  not_started: "#94a3b8",
+  in_progress: "#fbbf24",
+  complete: "#34d399",
+};
+
+/** Deliberate status coloring (not_started/in_progress/complete) -- replaces the old arbitrary tag-hash hue. */
+function statusColor(status: TopicStatus | undefined): string {
+  return STATUS_COLORS[status ?? "not_started"] ?? STATUS_COLORS.not_started;
+}
 
 let colorParseCtx: CanvasRenderingContext2D | null = null;
 
@@ -454,15 +465,14 @@ function KnowledgeGraphInner({
 
   const nodeColor = useCallback((n: GraphNode) => {
     const g = graphAccessorRef.current;
-    if (!g) return fadeRgbColor(cssColorToRgbString(groupColor(n.group, false)), 0.88);
+    if (!g) return fadeRgbColor(cssColorToRgbString(statusColor(n.status)), 0.88);
     const id = n.id;
     if (g.pathNodeIds.size > 0) {
       if (g.pathNodeIds.has(id)) return fadeRgbColor(cssColorToRgbString(PATH_HIGHLIGHT_COLOR), 1);
-      return fadeRgbColor(cssColorToRgbString(groupColor(n.group, false)), 0.2);
+      return fadeRgbColor(cssColorToRgbString(statusColor(n.status)), 0.2);
     }
     const dim = g.hoverDimRef.current;
-    const baseCss = n.color ?? groupColor(n.group, false);
-    const rgb = cssColorToRgbString(baseCss);
+    const rgb = cssColorToRgbString(statusColor(n.status));
     if (!g.dimmingFocusId || g.focusNeighborNodes.has(id)) return fadeRgbColor(rgb, 0.92);
     const floor = g.restrictLinksToFocus ? 0.16 : 0.2;
     const opacityMult = Math.max(floor, 1 - dim * 0.88);
@@ -549,7 +559,6 @@ function KnowledgeGraphInner({
         graphData={data}
         backgroundColor="rgba(0,0,0,0)"
         nodeId="id"
-        nodeAutoColorBy="group"
         nodeColor={nodeColor}
         linkColor={linkColor}
         linkWidth={linkWidth}

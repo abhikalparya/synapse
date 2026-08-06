@@ -112,26 +112,6 @@ export function prepareGraphData(raw: GraphData, options: PrepareGraphOptions = 
   return enrichGraphData({ nodes, links: capped });
 }
 
-/** Semantic hues by domain keyword (Obsidian-style); falls back to stable hash. */
-export function groupColor(group: string, dim = false): string {
-  const g = (group || "").toLowerCase();
-  const s = dim ? 34 : 46;
-  const l = dim ? 40 : 52;
-  let hue = 255;
-  if (/\b(ai|ml|llm|gpt|neural|model)\b/.test(g) || g.includes("artificial")) hue = 272;
-  else if (/\b(eng|code|software|system|api|dev|tech)\b/.test(g) || g.includes("engineer")) hue = 218;
-  else if (/\b(psych|mind|behavior|cognitive|mental)\b/.test(g)) hue = 152;
-  else if (/\b(cross|meta|general|note)\b/.test(g) || g.includes("synapse")) hue = 48;
-  else {
-    let h = 0;
-    for (let i = 0; i < group.length; i++) {
-      h = (h * 31 + group.charCodeAt(i)) >>> 0;
-    }
-    hue = 220 + (h % 72);
-  }
-  return `hsl(${hue} ${s}% ${l}%)`;
-}
-
 /** Directly connected node ids (by wiki title id). */
 export function neighborNodeIds(data: GraphData, nodeId: string): string[] {
   const out = new Set<string>();

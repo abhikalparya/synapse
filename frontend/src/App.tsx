@@ -12,7 +12,14 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || res.statusText);
+    let message = text || res.statusText;
+    try {
+      const j = JSON.parse(text) as { detail?: unknown };
+      if (typeof j.detail === "string") message = j.detail;
+    } catch {
+      // not JSON -- fall back to raw text
+    }
+    throw new Error(message);
   }
   return res.json() as Promise<T>;
 }
@@ -152,6 +159,11 @@ export default function App() {
     [refreshGraph, refreshStats],
   );
 
+  const handleTopicChanged = useCallback(async () => {
+    await refreshGraph({ silent: true, preserveLayout: true });
+    await refreshStats();
+  }, [refreshGraph, refreshStats]);
+
   const handleUndoLastChange = useCallback(async () => {
     setUndoBusy(true);
     try {
@@ -290,6 +302,7 @@ export default function App() {
         node={selectedNode}
         onClose={() => setSelectedNode(null)}
         onNavigateToNode={navigateToNode}
+        onTopicChanged={() => void handleTopicChanged()}
       />
 
       <GenerateRoadmapModal

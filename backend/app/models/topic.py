@@ -21,6 +21,7 @@ class Topic(BaseModel):
     summary: str = Field(default="")
     status: TopicStatus = Field(default="not_started")
     resources: list[Resource] = Field(default_factory=list)
+    quiz_passed: bool = Field(default=False, description="Whether the current closure quiz has been passed")
     created_at: datetime | None = Field(default=None)
     updated_at: datetime | None = Field(default=None)
 
@@ -43,3 +44,13 @@ class TopicCreate(BaseModel):
 class DependencyCreate(BaseModel):
     from_topic_id: str
     to_topic_id: str
+
+
+class TopicUpdate(BaseModel):
+    status: TopicStatus | None = None
+
+
+class ResourceCreate(BaseModel):
+    type: ResourceType
+    source_ref: str = Field(..., min_length=1)
+    title: str = Field(default="")

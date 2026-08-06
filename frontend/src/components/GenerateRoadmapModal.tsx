@@ -12,12 +12,14 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const text = await res.text();
   if (!res.ok) {
+    let message = text || res.statusText;
     try {
       const j = JSON.parse(text) as { detail?: unknown };
-      throw new Error(typeof j.detail === "string" ? j.detail : text || res.statusText);
+      if (typeof j.detail === "string") message = j.detail;
     } catch {
-      throw new Error(text || res.statusText);
+      // not JSON -- fall back to raw text
     }
+    throw new Error(message);
   }
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }

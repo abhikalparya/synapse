@@ -10,12 +10,11 @@ export type Resource = {
 export type GraphNode = {
   id: string;
   group: string;
-  /** Filled by react-force-graph when nodeAutoColorBy is set */
-  color?: string;
   title?: string;
   summary?: string;
   status?: TopicStatus;
   resources?: Resource[];
+  quiz_passed?: boolean;
   __deg?: number;
   x?: number;
   y?: number;
@@ -123,4 +122,32 @@ export type RollbackResponse = {
   snapshot_id: string;
   restored_topics: number;
   restored_dependencies: number;
+};
+
+export type QuizQuestionPublic = {
+  id: string;
+  question: string;
+  choices: string[];
+};
+
+/** Quiz as returned by generation -- no correct answers included. */
+export type QuizPublic = {
+  topic_id: string;
+  questions: QuizQuestionPublic[];
+};
+
+export type QuizResultQuestion = {
+  question_id: string;
+  correct: boolean;
+  correct_index: number;
+  selected_index: number | null;
+};
+
+export type QuizResult = {
+  topic_id: string;
+  score: number;
+  passed: boolean;
+  correct_count: number;
+  total: number;
+  results: QuizResultQuestion[];
 };
