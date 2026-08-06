@@ -7,13 +7,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes.generate import router as generate_router
 from app.routes.graph import router as graph_router
 from app.routes.ingest import router as ingest_router
 from app.routes.lint import router as lint_router
-from app.routes.query import router as query_router
-from app.routes.refactor import router as refactor_router
 from app.routes.stats import router as stats_router
+from app.routes.topics import router as topics_router
 from app.services.llm import close_async_openai_client
 
 _backend_dir = Path(__file__).resolve().parent.parent
@@ -48,9 +46,7 @@ app.add_middleware(
 )
 
 app.include_router(ingest_router)
-app.include_router(generate_router)
-app.include_router(query_router)
+app.include_router(topics_router)
 app.include_router(graph_router)
 app.include_router(stats_router)
-app.include_router(refactor_router)
 app.include_router(lint_router)

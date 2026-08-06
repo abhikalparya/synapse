@@ -1,6 +1,12 @@
 import { useMemo } from "react";
 import { neighborNodeIds } from "../graphUtils";
-import type { GraphData, GraphNode } from "../types";
+import type { GraphData, GraphNode, TopicStatus } from "../types";
+
+const STATUS_LABEL: Record<TopicStatus, string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  complete: "Complete",
+};
 
 type Props = {
   graphData: GraphData;
@@ -29,39 +35,22 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode }:
       </div>
       <div className="details-panel__body">
         {!node ? (
-          <p className="details-panel__empty">Select a node on the graph to inspect wiki content.</p>
+          <p className="details-panel__empty">Select a topic on the graph to inspect it.</p>
         ) : (
           <article className="node-card">
             <h3 className="node-card__title">{node.title ?? node.id}</h3>
+            {node.status ? (
+              <span className={`status-pill status-pill--${node.status}`}>
+                {STATUS_LABEL[node.status]}
+              </span>
+            ) : null}
             {node.summary ? <p className="node-card__summary">{node.summary}</p> : null}
-            {node.key_points && node.key_points.length > 0 ? (
+            {node.resources && node.resources.length > 0 ? (
               <section className="node-card__section">
-                <h4>Key points</h4>
-                <ul>
-                  {node.key_points.map((kp) => (
-                    <li key={kp}>{kp}</li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-            {node.tags && node.tags.length > 0 ? (
-              <section className="node-card__section">
-                <h4>Tags</h4>
-                <div className="node-card__tags">
-                  {node.tags.map((t) => (
-                    <span key={t} className="tag-pill">
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-            {node.source_notes && node.source_notes.length > 0 ? (
-              <section className="node-card__section">
-                <h4>Source notes</h4>
+                <h4>Resources</h4>
                 <ul className="node-card__sources">
-                  {node.source_notes.map((s) => (
-                    <li key={s}>{s}</li>
+                  {node.resources.map((r) => (
+                    <li key={r.id}>{r.title || r.source_ref}</li>
                   ))}
                 </ul>
               </section>

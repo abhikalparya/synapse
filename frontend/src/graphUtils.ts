@@ -6,8 +6,9 @@ export function linkEndpoint(link: GraphLink, end: "source" | "target"): string 
   return raw.id;
 }
 
-export function linkKey(a: string, b: string): string {
-  return a <= b ? `${a}|${b}` : `${b}|${a}`;
+/** Directed edge key: order matters (``source -> target``), unlike the old undirected graph. */
+export function linkKey(source: string, target: string): string {
+  return `${source}->${target}`;
 }
 
 export function dedupeLinks(links: GraphLink[]): GraphLink[] {

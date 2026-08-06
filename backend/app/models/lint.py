@@ -4,16 +4,15 @@ from pydantic import BaseModel, Field, ValidationError
 
 
 class LintIssue(BaseModel):
-    """Single lint finding; shape varies by ``type`` (``page`` vs ``pages``)."""
+    """Single lint finding; shape varies by ``type`` (``topic`` vs ``topics``)."""
 
     type: str = Field(
         ...,
-        description="duplicate | missing_tags | empty_summary | weak_key_points | inconsistent_formatting",
+        description="missing_summary | duplicate_title | self_dependency | orphan_dependency | cycle",
     )
-    page: str | None = Field(default=None, description="Affected wiki title when a single page")
-    pages: list[str] | None = Field(default=None, description="Titles in a duplicate cluster")
+    topic: str | None = Field(default=None, description="Affected topic id when a single topic")
+    topics: list[str] | None = Field(default=None, description="Topic ids/titles involved (e.g. a cycle)")
     detail: str | None = Field(default=None, description="Extra context for the issue")
-    suggestion: str | None = Field(default=None, description="Optional LLM fix hint")
 
 
 class LintResponse(BaseModel):
@@ -29,8 +28,8 @@ class LintResponse(BaseModel):
                 out.append(
                     LintIssue(
                         type=str(x.get("type", "unknown")),
-                        page=x.get("page"),
-                        pages=x.get("pages") if isinstance(x.get("pages"), list) else None,
+                        topic=x.get("topic"),
+                        topics=x.get("topics") if isinstance(x.get("topics"), list) else None,
                         detail=str(x.get("detail", x))[:500],
                     ),
                 )

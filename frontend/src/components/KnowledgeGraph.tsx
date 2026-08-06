@@ -529,6 +529,9 @@ function KnowledgeGraphInner({
         linkColor={linkColor}
         linkWidth={linkWidth}
         linkVisibility={linkVisibility}
+        linkDirectionalArrowLength={4.5}
+        linkDirectionalArrowRelPos={1}
+        linkDirectionalArrowColor={linkColor}
         nodeLabel={nodeLabel}
         nodeVal={nodeVal}
         nodeRelSize={3.15}

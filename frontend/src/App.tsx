@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import { GraphSearchBar } from "./components/GraphSearchBar";
-import { IngestModal } from "./components/IngestModal";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { NodeDetailsPanel } from "./components/NodeDetailsPanel";
-import { QueryBar } from "./components/QueryBar";
 import { Sidebar } from "./components/Sidebar";
 import { prepareGraphData } from "./graphUtils";
-import type { GraphData, GraphNode, QueryResponse, RefactorResponse, StatsResponse } from "./types";
+import type { GraphData, GraphNode, StatsResponse } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -19,6 +17,8 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 const emptyGraph = (): GraphData => ({ nodes: [], links: [] });
+const NO_IDS: readonly string[] = [];
+const NO_USED_IDS = new Set<string>();
 
 export default function App() {
   const [graphData, setGraphData] = useState<GraphData>(() => prepareGraphData(emptyGraph()));
@@ -28,41 +28,16 @@ export default function App() {
   const [graphError, setGraphError] = useState<string | null>(null);
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
-  const [queryError, setQueryError] = useState<string | null>(null);
-  const [queryLoading, setQueryLoading] = useState(false);
-  const [queryAnswerEpoch, setQueryAnswerEpoch] = useState(0);
-  const [queryPulseEpoch, setQueryPulseEpoch] = useState(0);
-  const [queryPulseIds, setQueryPulseIds] = useState<readonly string[]>([]);
   const [reheatToken, setReheatToken] = useState(0);
-  const [ingestOpen, setIngestOpen] = useState(false);
-  const [birthEpoch, setBirthEpoch] = useState(0);
-  const [birthNodeIds, setBirthNodeIds] = useState<string[]>([]);
-  const [refactorLoading, setRefactorLoading] = useState(false);
-  const [refactorError, setRefactorError] = useState<string | null>(null);
-  const [refactorResult, setRefactorResult] = useState<RefactorResponse | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [graphUpdatePulse, setGraphUpdatePulse] = useState(0);
-
-  const queueNodeBirth = useCallback((ids: string[]) => {
-    const unique = [...new Set(ids.map((s) => s.trim()).filter(Boolean))];
-    if (!unique.length) return;
-    setBirthNodeIds(unique);
-    setBirthEpoch((e) => e + 1);
-  }, []);
 
   const graphAreaRef = useRef<HTMLDivElement>(null);
-  const selectedNodeRef = useRef<GraphNode | null>(null);
   const focusCameraNonceRef = useRef(0);
   const [focusCameraRequest, setFocusCameraRequest] = useState<{ nodeId: string; nonce: number } | null>(null);
-  const [queryHistory, setQueryHistory] = useState<string[]>([]);
-  const [graphFitAfterQueryEpoch, setGraphFitAfterQueryEpoch] = useState(0);
   const [graphSize, setGraphSize] = useState({ w: 400, h: 400 });
 
   const layoutSnapshotRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const graphDataRef = useRef(graphData);
   graphDataRef.current = graphData;
-  selectedNodeRef.current = selectedNode;
 
   const captureLayout = useCallback(() => {
     for (const n of graphDataRef.current.nodes) {
@@ -79,12 +54,6 @@ export default function App() {
       return next ?? prev;
     });
   }, [graphData]);
-
-  const queryUsedIds = useMemo(
-    () => new Set(queryResult?.used_nodes ?? []),
-    [queryResult?.used_nodes],
-  );
-  const queryUpdatedId = queryResult?.updated_node ?? null;
 
   const refreshGraph = useCallback(async (opts?: { silent?: boolean; preserveLayout?: boolean }) => {
     const silent = opts?.silent ?? false;
@@ -137,8 +106,8 @@ export default function App() {
     return () => ro.disconnect();
   }, []);
 
-  const resolveNodeByTitle = useCallback(
-    (title: string) => graphData.nodes.find((n) => n.id === title) ?? null,
+  const resolveNodeById = useCallback(
+    (id: string) => graphData.nodes.find((n) => n.id === id) ?? null,
     [graphData.nodes],
   );
 
@@ -155,51 +124,9 @@ export default function App() {
     [bumpFocusCamera],
   );
 
-  const handleQuery = useCallback(
-    async (text: string) => {
-      setQueryError(null);
-      setQueryLoading(true);
-      captureLayout();
-      try {
-        const body = await fetchJson<QueryResponse>("/query", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: text }),
-        });
-        setQueryResult(body);
-        setQueryAnswerEpoch((n) => n + 1);
-        const trimmed = text.trim();
-        if (trimmed) {
-          setQueryHistory((h) => [trimmed, ...h.filter((x) => x !== trimmed)].slice(0, 5));
-        }
-        await refreshGraph({ silent: true, preserveLayout: true });
-        if (selectedNodeRef.current) {
-          setGraphFitAfterQueryEpoch((n) => n + 1);
-        }
-        const pulseIds = [
-          ...new Set(
-            [...body.used_nodes, ...(body.updated_node ? [body.updated_node] : [])].map((s) => s.trim()).filter(Boolean),
-          ),
-        ];
-        setQueryPulseIds(pulseIds);
-        setQueryPulseEpoch((n) => n + 1);
-        if (body.updated_node) {
-          queueNodeBirth([body.updated_node]);
-        }
-        await refreshStats();
-      } catch (e) {
-        setQueryError(e instanceof Error ? e.message : "Query failed");
-        throw e;
-      } finally {
-        setQueryLoading(false);
-      }
-    },
-    [captureLayout, queueNodeBirth, refreshGraph, refreshStats],
-  );
-
-  const handlePickTitle = useCallback(
-    (title: string) => {
-      const n = resolveNodeByTitle(title);
+  const handlePickNode = useCallback(
+    (id: string) => {
+      const n = resolveNodeById(id);
       if (n) {
         setSelectedNode(n);
         bumpFocusCamera(n.id);
@@ -207,44 +134,8 @@ export default function App() {
         setSelectedNode(null);
       }
     },
-    [bumpFocusCamera, resolveNodeByTitle],
+    [bumpFocusCamera, resolveNodeById],
   );
-
-  useEffect(() => {
-    if (!successToast) return;
-    const t = window.setTimeout(() => setSuccessToast(null), 4000);
-    return () => window.clearTimeout(t);
-  }, [successToast]);
-
-  const handleRefactor = useCallback(async () => {
-    setRefactorError(null);
-    setRefactorLoading(true);
-    captureLayout();
-    try {
-      const body = await fetchJson<RefactorResponse>("/refactor", { method: "POST" });
-      setRefactorResult(body);
-      setSuccessToast("Knowledge improved successfully");
-      await refreshGraph({ silent: true, preserveLayout: true });
-      await refreshStats();
-      setGraphUpdatePulse((n) => n + 1);
-    } catch (e) {
-      setRefactorError(e instanceof Error ? e.message : "Refactor failed");
-    } finally {
-      setRefactorLoading(false);
-    }
-  }, [captureLayout, refreshGraph, refreshStats]);
-
-  const handleIngestSuccess = useCallback(async () => {
-    const idsBefore = new Set(graphDataRef.current.nodes.map((n) => n.id));
-    captureLayout();
-    await refreshGraph({ silent: true, preserveLayout: true });
-    await refreshStats();
-    const idsAfter = graphDataRef.current.nodes.map((n) => n.id);
-    const newIds = idsAfter.filter((id) => !idsBefore.has(id));
-    if (newIds.length) {
-      queueNodeBirth(newIds);
-    }
-  }, [captureLayout, queueNodeBirth, refreshGraph, refreshStats]);
 
   const showGraph = graphSize.w > 0 && graphSize.h > 0;
   const hasNodes = graphData.nodes.length > 0;
@@ -254,27 +145,13 @@ export default function App() {
 
   return (
     <div className="app">
-      {successToast ? (
-        <div className="app__toast" role="status">
-          {successToast}
-        </div>
-      ) : null}
-      <Sidebar
-        stats={stats}
-        loading={statsLoading}
-        onPickTitle={handlePickTitle}
-        onAddNote={() => setIngestOpen(true)}
-        onRefactor={() => void handleRefactor()}
-        refactorLoading={refactorLoading}
-        refactorError={refactorError}
-        refactorResult={refactorResult}
-      />
+      <Sidebar stats={stats} loading={statsLoading} onPickNode={handlePickNode} />
 
       <main className="app__main">
         <header className="app__header">
           <div className="app__header-lead">
-            <h1 className="app__title">Knowledge graph</h1>
-            <p className="app__subtitle">Live structure · query-evolving memory</p>
+            <h1 className="app__title">Dependency graph</h1>
+            <p className="app__subtitle">Topics · directed prerequisites</p>
           </div>
           {hasNodes ? (
             <GraphSearchBar nodes={graphData.nodes} onNavigateToNode={navigateToNode} />
@@ -287,7 +164,7 @@ export default function App() {
           {canvasLoadingEmpty ? (
             <div className="app__canvas-loading" aria-live="polite">
               <span className="app__canvas-loading__dot" aria-hidden />
-              Syncing knowledge graph…
+              Syncing dependency graph…
             </div>
           ) : null}
           {emptyBrain ? (
@@ -307,10 +184,7 @@ export default function App() {
                   />
                 </svg>
               </div>
-              <p className="app__empty-message">Your second brain is empty. Add knowledge to begin.</p>
-              <button type="button" className="app__empty-cta" onClick={() => setIngestOpen(true)}>
-                Add Knowledge
-              </button>
+              <p className="app__empty-message">No topics yet. Create some via the API to see the graph.</p>
             </div>
           ) : null}
           {showKnowledgeGraph ? (
@@ -320,34 +194,15 @@ export default function App() {
               height={graphSize.h}
               selectedId={selectedNode?.id ?? null}
               onSelectNode={setSelectedNode}
-              queryUsedIds={queryUsedIds}
-              queryUpdatedId={queryUpdatedId}
+              queryUsedIds={NO_USED_IDS}
+              queryUpdatedId={null}
               reheatToken={reheatToken}
               onLayoutSnapshot={captureLayout}
-              birthEpoch={birthEpoch}
-              birthNodeIds={birthNodeIds}
-              queryPulseEpoch={queryPulseEpoch}
-              queryPulseIds={queryPulseIds}
-              fitAfterQueryEpoch={graphFitAfterQueryEpoch}
+              birthNodeIds={NO_IDS}
+              queryPulseIds={NO_IDS}
               focusCameraRequest={focusCameraRequest}
-              structuralUpdatePulse={graphUpdatePulse}
             />
           ) : null}
-        </div>
-
-        <div className="app__bottom">
-          <QueryBar
-            answer={queryResult?.answer ?? null}
-            loading={queryLoading}
-            error={queryError}
-            answerEpoch={queryAnswerEpoch}
-            queryHistory={queryHistory}
-            onReplayHistory={(q) => {
-              void handleQuery(q);
-            }}
-            onSubmit={handleQuery}
-            onDismissError={() => setQueryError(null)}
-          />
         </div>
       </main>
 
@@ -357,8 +212,6 @@ export default function App() {
         onClose={() => setSelectedNode(null)}
         onNavigateToNode={navigateToNode}
       />
-
-      <IngestModal open={ingestOpen} onClose={() => setIngestOpen(false)} onSuccess={handleIngestSuccess} />
     </div>
   );
 }

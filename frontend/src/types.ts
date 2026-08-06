@@ -1,3 +1,12 @@
+export type TopicStatus = "not_started" | "in_progress" | "complete";
+
+export type Resource = {
+  id: string;
+  type: "link" | "document" | "note";
+  source_ref: string;
+  title: string;
+};
+
 export type GraphNode = {
   id: string;
   group: string;
@@ -5,9 +14,8 @@ export type GraphNode = {
   color?: string;
   title?: string;
   summary?: string;
-  key_points?: string[];
-  tags?: string[];
-  source_notes?: string[];
+  status?: TopicStatus;
+  resources?: Resource[];
   __deg?: number;
   x?: number;
   y?: number;
@@ -15,6 +23,7 @@ export type GraphNode = {
   vy?: number;
 };
 
+/** Directed prerequisite edge: ``source`` requires ``target``. */
 export type GraphLink = {
   source: string | GraphNode;
   target: string | GraphNode;
@@ -25,34 +34,16 @@ export type GraphData = {
   links: GraphLink[];
 };
 
-export type QueryResponse = {
-  answer: string;
-  used_nodes: string[];
-  updated_node: string | null;
-  confidence_score: number;
-  wiki_action: "updated" | "created" | "skipped";
-  wiki_file: string | null;
-};
-
 export type RecentNode = {
+  id: string;
   title: string;
-  filename: string;
+  status: TopicStatus;
   created_at: string | null;
   updated_at: string | null;
-  tags: string[];
 };
 
 export type StatsResponse = {
   total_nodes: number;
   total_edges: number;
   recent_nodes: RecentNode[];
-  top_tags: { tag: string; count: number }[];
-};
-
-export type RefactorResponse = {
-  merged_groups: number;
-  pages_merged: number;
-  pages_updated: number;
-  pages_rewritten: number;
-  errors: string[];
 };
