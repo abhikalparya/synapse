@@ -4,8 +4,8 @@ import { GraphSearchBar } from "./components/GraphSearchBar";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { NodeDetailsPanel } from "./components/NodeDetailsPanel";
 import { Sidebar } from "./components/Sidebar";
-import { prepareGraphData } from "./graphUtils";
-import type { GraphData, GraphNode, StatsResponse } from "./types";
+import { linkKey, prepareGraphData } from "./graphUtils";
+import type { GraphData, GraphNode, PathResponse, StatsResponse } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -29,6 +29,8 @@ export default function App() {
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [reheatToken, setReheatToken] = useState(0);
+  const [pathNodeIds, setPathNodeIds] = useState<Set<string>>(new Set());
+  const [pathLinkKeys, setPathLinkKeys] = useState<Set<string>>(new Set());
 
   const graphAreaRef = useRef<HTMLDivElement>(null);
   const focusCameraNonceRef = useRef(0);
@@ -105,6 +107,31 @@ export default function App() {
     setGraphSize({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    const id = selectedNode?.id;
+    if (!id) {
+      setPathNodeIds(new Set());
+      setPathLinkKeys(new Set());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchJson<PathResponse>(`/graph/path?target=${encodeURIComponent(id)}`);
+        if (cancelled) return;
+        setPathNodeIds(new Set(res.chain.map((c) => c.id)));
+        setPathLinkKeys(new Set(res.edges.map((e) => linkKey(e.source, e.target))));
+      } catch {
+        if (cancelled) return;
+        setPathNodeIds(new Set());
+        setPathLinkKeys(new Set());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNode?.id]);
 
   const resolveNodeById = useCallback(
     (id: string) => graphData.nodes.find((n) => n.id === id) ?? null,
@@ -201,6 +228,8 @@ export default function App() {
               birthNodeIds={NO_IDS}
               queryPulseIds={NO_IDS}
               focusCameraRequest={focusCameraRequest}
+              pathNodeIds={pathNodeIds}
+              pathLinkKeys={pathLinkKeys}
             />
           ) : null}
         </div>

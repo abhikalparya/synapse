@@ -47,3 +47,21 @@ export type StatsResponse = {
   total_edges: number;
   recent_nodes: RecentNode[];
 };
+
+export type PathChainEntry = {
+  id: string;
+  title: string;
+  status: TopicStatus;
+};
+
+export type PathEdge = {
+  source: string;
+  target: string;
+};
+
+/** Ordered prerequisite chain leading to ``target`` (root topics first, target last). */
+export type PathResponse = {
+  target: string;
+  chain: PathChainEntry[];
+  edges: PathEdge[];
+};

@@ -8,6 +8,8 @@ import type { GraphData, GraphLink, GraphNode } from "../types";
 import { groupColor, linkKey, neighborSets, nodeRadius } from "../graphUtils";
 
 const NO_BIRTH: readonly string[] = [];
+const NO_PATH_IDS: ReadonlySet<string> = new Set();
+const PATH_HIGHLIGHT_COLOR = "#4fd1ff";
 
 let colorParseCtx: CanvasRenderingContext2D | null = null;
 
@@ -44,6 +46,10 @@ type GraphAccessorCtx = {
   hoverDimRef: MutableRefObject<number>;
   /** When true, only edges between the focus node and its neighbors are shown. */
   restrictLinksToFocus: boolean;
+  /** Node ids along the currently highlighted prerequisite chain (empty when none). */
+  pathNodeIds: ReadonlySet<string>;
+  /** Directed edge keys (``linkKey(source, target)``) along the highlighted chain. */
+  pathLinkKeys: ReadonlySet<string>;
 };
 
 type PaintCtx = {
@@ -85,6 +91,10 @@ type Props = {
   focusCameraRequest?: { nodeId: string; nonce: number } | null;
   /** Increment after bulk graph refresh (e.g. refactor) for a brief visual soften. */
   structuralUpdatePulse?: number;
+  /** Node ids along the currently highlighted prerequisite chain (from `/graph/path`). */
+  pathNodeIds?: ReadonlySet<string>;
+  /** Directed edge keys (``linkKey(source, target)``) along the highlighted chain. */
+  pathLinkKeys?: ReadonlySet<string>;
 };
 
 function wantGlowBefore(n: GraphNode, p: PaintCtx): boolean {
@@ -216,6 +226,8 @@ function KnowledgeGraphInner({
   fitAfterQueryEpoch = 0,
   focusCameraRequest = null,
   structuralUpdatePulse = 0,
+  pathNodeIds = NO_PATH_IDS,
+  pathLinkKeys = NO_PATH_IDS,
 }: Props) {
   const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -232,8 +244,9 @@ function KnowledgeGraphInner({
 
   const interactionFocusId = hoverId ?? selectedId;
   const hasQueryHighlight = queryUsedIds.size > 0 || Boolean(queryUpdatedId);
+  const hasPathHighlight = pathNodeIds.size > 0;
   /** Focus mode (fade + link filter) applies only after a node is selected, not on mere hover. */
-  const dimmingFocusId = hasQueryHighlight ? null : selectedId;
+  const dimmingFocusId = hasQueryHighlight || hasPathHighlight ? null : selectedId;
 
   const { focusNeighborNodes, focusLinkKeys } = useMemo(() => {
     const { nodes, linkKeys } = neighborSets(data, dimmingFocusId);
@@ -250,6 +263,8 @@ function KnowledgeGraphInner({
     focusLinkKeys,
     hoverDimRef,
     restrictLinksToFocus,
+    pathNodeIds,
+    pathLinkKeys,
   };
 
   const hoverDimRafRef = useRef(0);
@@ -441,6 +456,10 @@ function KnowledgeGraphInner({
     const g = graphAccessorRef.current;
     if (!g) return fadeRgbColor(cssColorToRgbString(groupColor(n.group, false)), 0.88);
     const id = n.id;
+    if (g.pathNodeIds.size > 0) {
+      if (g.pathNodeIds.has(id)) return fadeRgbColor(cssColorToRgbString(PATH_HIGHLIGHT_COLOR), 1);
+      return fadeRgbColor(cssColorToRgbString(groupColor(n.group, false)), 0.2);
+    }
     const dim = g.hoverDimRef.current;
     const baseCss = n.color ?? groupColor(n.group, false);
     const rgb = cssColorToRgbString(baseCss);
@@ -456,6 +475,9 @@ function KnowledgeGraphInner({
     const t = typeof link.target === "string" ? link.target : link.target.id;
     const k = linkKey(s, t);
     if (!g) return "rgba(120, 135, 160, 0.26)";
+    if (g.pathLinkKeys.size > 0) {
+      return g.pathLinkKeys.has(k) ? "rgba(79, 209, 255, 0.92)" : "rgba(120, 135, 160, 0.08)";
+    }
     const dim = g.hoverDimRef.current;
     const inN = g.focusLinkKeys.has(k);
     const fadeOut = Math.max(0.06, 1 - dim * 0.9);
@@ -472,6 +494,9 @@ function KnowledgeGraphInner({
     const t = typeof link.target === "string" ? link.target : link.target.id;
     const k = linkKey(s, t);
     if (!g) return 0.26;
+    if (g.pathLinkKeys.size > 0) {
+      return g.pathLinkKeys.has(k) ? 2.4 : 0.12;
+    }
     const dim = g.hoverDimRef.current;
     const inN = g.focusLinkKeys.has(k);
     if (inN) return 0.58 + dim * 0.44;
