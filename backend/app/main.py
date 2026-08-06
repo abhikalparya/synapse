@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routes.generate import router as generate_router
 from app.routes.graph import router as graph_router
 from app.routes.ingest import router as ingest_router
 from app.routes.lint import router as lint_router
@@ -46,6 +47,7 @@ app.add_middleware(
 )
 
 app.include_router(ingest_router)
+app.include_router(generate_router)
 app.include_router(topics_router)
 app.include_router(graph_router)
 app.include_router(stats_router)
