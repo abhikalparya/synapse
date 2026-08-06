@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
+import { GenerateRoadmapModal } from "./components/GenerateRoadmapModal";
 import { GraphSearchBar } from "./components/GraphSearchBar";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { NodeDetailsPanel } from "./components/NodeDetailsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { linkKey, prepareGraphData } from "./graphUtils";
-import type { GraphData, GraphNode, PathResponse, StatsResponse } from "./types";
+import type { ApplyResponse, GraphData, GraphNode, PathResponse, RollbackResponse, StatsResponse } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -31,6 +32,9 @@ export default function App() {
   const [reheatToken, setReheatToken] = useState(0);
   const [pathNodeIds, setPathNodeIds] = useState<Set<string>>(new Set());
   const [pathLinkKeys, setPathLinkKeys] = useState<Set<string>>(new Set());
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const graphAreaRef = useRef<HTMLDivElement>(null);
   const focusCameraNonceRef = useRef(0);
@@ -133,6 +137,40 @@ export default function App() {
     };
   }, [selectedNode?.id]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  const handleApplied = useCallback(
+    async (result: ApplyResponse) => {
+      await refreshGraph({ silent: true, preserveLayout: true });
+      await refreshStats();
+      setToast(`Applied: ${result.created_topics.length} topic(s), ${result.created_dependencies.length} dependency(ies)`);
+    },
+    [refreshGraph, refreshStats],
+  );
+
+  const handleUndoLastChange = useCallback(async () => {
+    setUndoBusy(true);
+    try {
+      const res = await fetchJson<RollbackResponse>("/rollback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      await refreshGraph({ silent: true, preserveLayout: false });
+      await refreshStats();
+      setSelectedNode(null);
+      setToast(`Rolled back to snapshot ${res.snapshot_id}`);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "Nothing to undo");
+    } finally {
+      setUndoBusy(false);
+    }
+  }, [refreshGraph, refreshStats]);
+
   const resolveNodeById = useCallback(
     (id: string) => graphData.nodes.find((n) => n.id === id) ?? null,
     [graphData.nodes],
@@ -172,7 +210,19 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar stats={stats} loading={statsLoading} onPickNode={handlePickNode} />
+      {toast ? (
+        <div className="app__toast" role="status">
+          {toast}
+        </div>
+      ) : null}
+      <Sidebar
+        stats={stats}
+        loading={statsLoading}
+        onPickNode={handlePickNode}
+        onGenerateRoadmap={() => setGenerateModalOpen(true)}
+        onUndoLastChange={() => void handleUndoLastChange()}
+        undoBusy={undoBusy}
+      />
 
       <main className="app__main">
         <header className="app__header">
@@ -240,6 +290,12 @@ export default function App() {
         node={selectedNode}
         onClose={() => setSelectedNode(null)}
         onNavigateToNode={navigateToNode}
+      />
+
+      <GenerateRoadmapModal
+        open={generateModalOpen}
+        onClose={() => setGenerateModalOpen(false)}
+        onApplied={(result) => void handleApplied(result)}
       />
     </div>
   );

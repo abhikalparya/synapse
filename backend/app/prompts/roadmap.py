@@ -8,7 +8,11 @@ Output rules:
 - Use this exact shape and key names:
   {
     "topics": [
-      {"title": "short topic name", "summary": "1-3 sentence overview of this topic"},
+      {
+        "title": "short topic name",
+        "summary": "1-3 sentence overview of this topic",
+        "confidence": <number between 0 and 1>
+      },
       ...
     ],
     "dependencies": [
@@ -22,7 +26,11 @@ Output rules:
 - Use 3-8 topics for a focused goal; more only if the goal is genuinely broad.
 - List topics roughly foundational-first, but the "dependencies" edges (not list order) define the real structure.
 - Titles should be short, specific, and non-overlapping; summaries factual, with no invented specifics beyond
-  what the goal/content implies."""
+  what the goal/content implies.
+- confidence (your calibration, 0-1, per topic):
+  High (0.8-1.0): this topic and its role in the sequence is well-established, standard knowledge.
+  Medium (0.4-0.8): reasonable inference from the goal/content, or a topic whose exact placement is debatable.
+  Low (0.0-0.4): speculative, a stretch from the given goal/content, or you are largely guessing it belongs."""
 
 
 def build_roadmap_generation_prompt(source_text: str, known_topic_titles: list[str] | None = None) -> str:

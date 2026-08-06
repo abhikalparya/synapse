@@ -65,3 +65,62 @@ export type PathResponse = {
   chain: PathChainEntry[];
   edges: PathEdge[];
 };
+
+export type ProposalStatus = "pending" | "applied" | "discarded";
+
+export type ProposedTopic = {
+  temp_id: string;
+  title: string;
+  summary: string;
+  confidence: number;
+  needs_review: boolean;
+};
+
+export type ProposedDependency = {
+  from_temp_id: string;
+  to_temp_id: string;
+};
+
+export type SkippedProposedDependency = {
+  from_title: string;
+  to_title: string;
+  reason: string;
+};
+
+/** A pending/applied/discarded AI-proposed graph change, returned by POST /generate/roadmap. */
+export type Proposal = {
+  id: string;
+  status: ProposalStatus;
+  source: string;
+  topics: ProposedTopic[];
+  dependencies: ProposedDependency[];
+  skipped_dependencies: SkippedProposedDependency[];
+  errors: string[];
+  created_at: string | null;
+  applied_at: string | null;
+  snapshot_id: string | null;
+};
+
+export type Topic = {
+  id: string;
+  title: string;
+  summary: string;
+  status: TopicStatus;
+  resources: Resource[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ApplyResponse = {
+  proposal_id: string;
+  snapshot_id: string;
+  created_topics: Topic[];
+  created_dependencies: { id: string; from_topic_id: string; to_topic_id: string }[];
+  skipped_dependencies: SkippedProposedDependency[];
+};
+
+export type RollbackResponse = {
+  snapshot_id: string;
+  restored_topics: number;
+  restored_dependencies: number;
+};

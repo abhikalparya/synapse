@@ -1,22 +1,37 @@
-"""Generative roadmap creation: goal / topic-dump / ingested notes -> Topic + Dependency DAG via LLM."""
+"""Generative roadmap creation: goal / topic-dump / ingested notes -> a reviewable Proposal.
+
+Nothing here writes to the topics/ store -- ``generate_roadmap`` only builds and persists a
+``Proposal`` record. Actually creating topics/dependencies happens in ``apply_proposal``
+(see ``routes/proposals.py``), which is the only place a graph mutation can originate from.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import ValidationError
-
-from app.models.roadmap import GenerateRoadmapResponse, SkippedDependency
-from app.models.topic import Dependency, DependencyCreate, Topic, TopicCreate
+from app.models.proposal import Proposal, ProposedDependency, ProposedTopic, SkippedProposedDependency
 from app.prompts.roadmap import build_roadmap_generation_prompt
 from app.services.file_handler import read_raw_note, resolve_raw_note_file
 from app.services.llm import call_llm
-from app.services.topics import DependencyCycleError, add_dependency, load_all_topics, save_topic
+from app.services.proposals import save_proposal
+from app.services.topics import load_all_topics, would_create_cycle
 
 logger = logging.getLogger(__name__)
+
+
+def _review_confidence_threshold() -> float:
+    raw = os.environ.get("ROADMAP_REVIEW_CONFIDENCE_THRESHOLD", "0.6").strip()
+    try:
+        t = float(raw)
+    except ValueError:
+        return 0.6
+    return max(0.0, min(1.0, t))
 
 
 def _strip_json_fences(text: str) -> str:
@@ -31,19 +46,23 @@ def _build_source_text(
     goal: str | None,
     topics: list[str] | None,
     filenames: list[str] | None,
-) -> tuple[str, list[str]]:
-    """Combine goal / topic-dump / raw-note text into one prompt source; returns (text, errors)."""
+) -> tuple[str, list[str], str]:
+    """Combine goal / topic-dump / raw-note text into one prompt source; returns (text, errors, source_label)."""
     parts: list[str] = []
     errors: list[str] = []
+    label_parts: list[str] = []
 
     if goal and goal.strip():
         parts.append(f"Goal: {goal.strip()}")
+        label_parts.append(f"goal: {goal.strip()[:80]!r}")
 
     if topics:
         dump = "\n".join(f"- {t.strip()}" for t in topics if t.strip())
         if dump:
             parts.append(f"Topic dump:\n{dump}")
+            label_parts.append(f"{len([t for t in topics if t.strip()])} topic dump entries")
 
+    resolved_notes = 0
     for name in filenames or []:
         path = resolve_raw_note_file(name)
         if path is None:
@@ -56,8 +75,11 @@ def _build_source_text(
             continue
         if text.strip():
             parts.append(f"Note ({name}):\n{text.strip()}")
+            resolved_notes += 1
+    if resolved_notes:
+        label_parts.append(f"{resolved_notes} note(s)")
 
-    return "\n\n".join(parts), errors
+    return "\n\n".join(parts), errors, ", ".join(label_parts) or "unspecified source"
 
 
 def _parse_roadmap_json(raw: str) -> dict[str, Any]:
@@ -73,13 +95,16 @@ async def generate_roadmap(
     goal: str | None,
     topics: list[str] | None,
     filenames: list[str] | None,
-) -> GenerateRoadmapResponse:
+) -> Proposal:
     """
-    Call the LLM for a topic + dependency DAG from the given source(s), persist the topics,
-    then add each dependency through the Phase 1 cycle check -- edges that would close a
-    cycle (or reference an unknown title) are skipped and reported, never silently dropped.
+    Call the LLM for a topic + dependency DAG from the given source(s) and build (and persist)
+    a pending Proposal -- no topics or dependencies are written to the graph. Every candidate
+    dependency is checked against the same DAG-cycle invariant from Phase 1, in-memory against
+    the other proposed edges; edges that would close a cycle (or reference an unknown title)
+    are skipped and reported, never silently dropped. Topics below the confidence threshold
+    are flagged ``needs_review`` for the reviewer, not auto-rejected.
     """
-    source_text, source_errors = _build_source_text(goal, topics, filenames)
+    source_text, source_errors, source_label = _build_source_text(goal, topics, filenames)
     if not source_text.strip():
         raise ValueError("Provide at least one of: goal, topics, filenames (with resolvable content)")
 
@@ -95,8 +120,9 @@ async def generate_roadmap(
     if not isinstance(raw_deps, list):
         raw_deps = []
 
-    created_topics: list[Topic] = []
-    title_to_id: dict[str, str] = {}
+    threshold = _review_confidence_threshold()
+    proposed_topics: list[ProposedTopic] = []
+    title_to_temp_id: dict[str, str] = {}
     errors: list[str] = list(source_errors)
 
     for row in raw_topics:
@@ -107,46 +133,69 @@ async def generate_roadmap(
             continue
         summary = str(row.get("summary", "")).strip()
         try:
-            create = TopicCreate(title=title, summary=summary)
-        except ValidationError as exc:
-            errors.append(f"invalid topic {title!r}: {exc}")
-            continue
-        stored = save_topic(create)
-        topic = Topic.model_validate({k: v for k, v in stored.items() if k != "path"})
-        created_topics.append(topic)
-        title_to_id[title.casefold()] = topic.id
+            confidence = float(row.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        confidence = max(0.0, min(1.0, confidence))
 
-    created_dependencies: list[Dependency] = []
-    skipped_dependencies: list[SkippedDependency] = []
+        temp_id = uuid.uuid4().hex
+        proposed_topics.append(
+            ProposedTopic(
+                temp_id=temp_id,
+                title=title,
+                summary=summary,
+                confidence=confidence,
+                needs_review=confidence <= threshold,
+            ),
+        )
+        title_to_temp_id[title.casefold()] = temp_id
+
+    proposed_dependencies: list[ProposedDependency] = []
+    skipped_dependencies: list[SkippedProposedDependency] = []
+    accepted_dep_dicts: list[dict[str, str]] = []
 
     for row in raw_deps:
         if not isinstance(row, dict):
             continue
         from_title = str(row.get("from", "")).strip()
         to_title = str(row.get("to", "")).strip()
-        from_id = title_to_id.get(from_title.casefold())
-        to_id = title_to_id.get(to_title.casefold())
+        from_id = title_to_temp_id.get(from_title.casefold())
+        to_id = title_to_temp_id.get(to_title.casefold())
         if from_id is None or to_id is None:
             skipped_dependencies.append(
-                SkippedDependency(from_title=from_title, to_title=to_title, reason="unknown topic reference"),
+                SkippedProposedDependency(from_title=from_title, to_title=to_title, reason="unknown topic reference"),
             )
             continue
-        try:
-            payload = add_dependency(DependencyCreate(from_topic_id=from_id, to_topic_id=to_id))
-        except (DependencyCycleError, ValueError) as exc:
-            skipped_dependencies.append(SkippedDependency(from_title=from_title, to_title=to_title, reason=str(exc)))
+        if would_create_cycle(from_id, to_id, accepted_dep_dicts):
+            skipped_dependencies.append(
+                SkippedProposedDependency(
+                    from_title=from_title,
+                    to_title=to_title,
+                    reason="would create a cycle with other proposed dependencies",
+                ),
+            )
             continue
-        created_dependencies.append(Dependency.model_validate(payload))
+        accepted_dep_dicts.append({"from_topic_id": from_id, "to_topic_id": to_id})
+        proposed_dependencies.append(ProposedDependency(from_temp_id=from_id, to_temp_id=to_id))
 
-    logger.info(
-        "Roadmap generated: topics=%s dependencies=%s skipped=%s",
-        len(created_topics),
-        len(created_dependencies),
-        len(skipped_dependencies),
-    )
-    return GenerateRoadmapResponse(
-        created_topics=created_topics,
-        created_dependencies=created_dependencies,
+    proposal = Proposal(
+        id=uuid.uuid4().hex,
+        status="pending",
+        source=source_label,
+        topics=proposed_topics,
+        dependencies=proposed_dependencies,
         skipped_dependencies=skipped_dependencies,
         errors=errors,
+        created_at=datetime.now(timezone.utc),
     )
+    save_proposal(proposal)
+
+    logger.info(
+        "Roadmap proposal %s built: topics=%s dependencies=%s skipped=%s needs_review=%s",
+        proposal.id,
+        len(proposed_topics),
+        len(proposed_dependencies),
+        len(skipped_dependencies),
+        sum(1 for t in proposed_topics if t.needs_review),
+    )
+    return proposal

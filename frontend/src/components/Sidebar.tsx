@@ -4,6 +4,9 @@ type Props = {
   stats: StatsResponse | null;
   loading: boolean;
   onPickNode: (id: string) => void;
+  onGenerateRoadmap: () => void;
+  onUndoLastChange: () => void;
+  undoBusy: boolean;
 };
 
 const STATUS_LABEL: Record<RecentNode["status"], string> = {
@@ -12,7 +15,7 @@ const STATUS_LABEL: Record<RecentNode["status"], string> = {
   complete: "Complete",
 };
 
-export function Sidebar({ stats, loading, onPickNode }: Props) {
+export function Sidebar({ stats, loading, onPickNode, onGenerateRoadmap, onUndoLastChange, undoBusy }: Props) {
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
@@ -24,6 +27,13 @@ export function Sidebar({ stats, loading, onPickNode }: Props) {
           <div className="sidebar__tag">Dependency graph</div>
         </div>
       </div>
+
+      <button type="button" className="sidebar__add-note" onClick={onGenerateRoadmap}>
+        + Generate roadmap
+      </button>
+      <button type="button" className="sidebar__undo" onClick={onUndoLastChange} disabled={undoBusy}>
+        {undoBusy ? "Undoing…" : "Undo last change"}
+      </button>
 
       <section className="sidebar__section">
         <h3>Graph stats</h3>
