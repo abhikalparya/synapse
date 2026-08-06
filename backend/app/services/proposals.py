@@ -1,79 +1,91 @@
-"""Flat-JSON persistence for review proposals (pending / applied / discarded), plus the
-apply/discard lifecycle -- POST /apply is the only path that turns a Proposal into real
-Topic/Dependency records.
+"""SQLite-backed persistence for review proposals (pending / applied / discarded), plus
+the apply/discard lifecycle -- POST /apply is the only path that turns a Proposal into
+real Topic/Dependency records.
 """
 
-import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 
-from app.models.proposal import ApplyResponse, Proposal, SkippedProposedDependency
+from sqlalchemy import select
+
+from app.db.models import ProposalRow
+from app.db.session import SessionLocal
+from app.models.proposal import ApplyResponse, Proposal, ProposedDependency, ProposedTopic, SkippedProposedDependency
 from app.models.topic import Dependency, DependencyCreate, Topic, TopicCreate
 from app.services.snapshots import snapshot_graph
-from app.services.topics import DependencyCycleError, add_dependency, save_topic
+from app.services.topics import DependencyCycleError, _add_dependency_in_session, _create_topic_in_session
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-PROPOSALS_DIR = _PROJECT_ROOT / "proposals"
 
-
-def _ensure_proposals_dir() -> None:
-    PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _path_for(proposal_id: str) -> Path:
-    return PROPOSALS_DIR / f"{proposal_id}.json"
-
-
-def save_proposal(proposal: Proposal) -> None:
-    _ensure_proposals_dir()
-    _path_for(proposal.id).write_text(
-        json.dumps(proposal.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
+def _proposal_row_to_model(row: ProposalRow) -> Proposal:
+    return Proposal(
+        id=row.id,
+        status=row.status,
+        source=row.source,
+        topics=[ProposedTopic.model_validate(t) for t in row.topics],
+        dependencies=[ProposedDependency.model_validate(d) for d in row.dependencies],
+        skipped_dependencies=[SkippedProposedDependency.model_validate(s) for s in row.skipped_dependencies],
+        errors=list(row.errors or []),
+        created_at=row.created_at,
+        applied_at=row.applied_at,
+        snapshot_id=row.snapshot_id,
     )
 
 
+def save_proposal(proposal: Proposal) -> None:
+    with SessionLocal() as session, session.begin():
+        row = session.get(ProposalRow, proposal.id)
+        if row is None:
+            row = ProposalRow(id=proposal.id)
+            session.add(row)
+        row.status = proposal.status
+        row.source = proposal.source
+        row.topics = [t.model_dump(mode="json") for t in proposal.topics]
+        row.dependencies = [d.model_dump(mode="json") for d in proposal.dependencies]
+        row.skipped_dependencies = [s.model_dump(mode="json") for s in proposal.skipped_dependencies]
+        row.errors = list(proposal.errors)
+        row.created_at = proposal.created_at or datetime.now(timezone.utc)
+        row.applied_at = proposal.applied_at
+        row.snapshot_id = proposal.snapshot_id
+
+
 def load_proposal(proposal_id: str) -> Proposal | None:
-    path = _path_for(proposal_id)
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("Failed to load proposal %s: %s", proposal_id, exc)
-        return None
-    try:
-        return Proposal.model_validate(data)
-    except ValueError as exc:
-        logger.warning("Proposal %s failed validation: %s", proposal_id, exc)
-        return None
+    with SessionLocal() as session:
+        row = session.get(ProposalRow, proposal_id)
+        if row is None:
+            return None
+        try:
+            return _proposal_row_to_model(row)
+        except ValueError as exc:
+            logger.warning("Proposal %s failed validation: %s", proposal_id, exc)
+            return None
 
 
 def list_proposals(*, status: str | None = None) -> list[Proposal]:
-    _ensure_proposals_dir()
-    out: list[Proposal] = []
-    for path in sorted(PROPOSALS_DIR.glob("*.json")):
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            proposal = Proposal.model_validate(data)
-        except (OSError, json.JSONDecodeError, ValueError) as exc:
-            logger.warning("Skipping unreadable proposal %s: %s", path.name, exc)
-            continue
-        if status is None or proposal.status == status:
-            out.append(proposal)
-    out.sort(key=lambda p: p.created_at.isoformat() if p.created_at else p.id, reverse=True)
-    return out
+    with SessionLocal() as session:
+        stmt = select(ProposalRow).order_by(ProposalRow.created_at.desc())
+        if status is not None:
+            stmt = stmt.where(ProposalRow.status == status)
+        rows = session.scalars(stmt).all()
+        out: list[Proposal] = []
+        for row in rows:
+            try:
+                out.append(_proposal_row_to_model(row))
+            except ValueError as exc:
+                logger.warning("Skipping unreadable proposal %s: %s", row.id, exc)
+        return out
 
 
 def apply_proposal(proposal_id: str) -> ApplyResponse:
     """
-    Commit a pending proposal: snapshot the whole graph first, then persist each proposed
-    topic (assigning real ids) and, for each proposed dependency, resolve temp ids to real
-    ones and run it back through the Phase 1 cycle check -- the in-memory check at proposal
-    time is not re-litigated here, but disk state may have moved on since generation, so this
-    is the real, final gate before anything lands.
+    Commit a pending proposal: snapshot the whole graph first, then persist every proposed
+    topic and dependency in a single transaction -- if anything unexpected fails partway
+    through, the whole apply rolls back rather than leaving a half-applied graph (the flat-
+    JSON version couldn't offer this: each topic/dependency was its own separate file write).
+    A proposed dependency that fails its own cycle/uniqueness check is still just skipped and
+    reported, exactly as before -- that's an expected per-edge outcome, not a transaction
+    failure, so it's caught inside the loop rather than aborting the whole apply.
     """
     proposal = load_proposal(proposal_id)
     if proposal is None:
@@ -85,34 +97,55 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
 
     temp_to_real: dict[str, str] = {}
     created_topics: list[Topic] = []
-    for pt in proposal.topics:
-        stored = save_topic(TopicCreate(title=pt.title, summary=pt.summary))
-        topic = Topic.model_validate({k: v for k, v in stored.items() if k != "path"})
-        temp_to_real[pt.temp_id] = topic.id
-        created_topics.append(topic)
-
     created_dependencies: list[Dependency] = []
     skipped_dependencies: list[SkippedProposedDependency] = list(proposal.skipped_dependencies)
     title_by_temp_id = {pt.temp_id: pt.title for pt in proposal.topics}
 
-    for pd in proposal.dependencies:
-        from_id = temp_to_real.get(pd.from_temp_id)
-        to_id = temp_to_real.get(pd.to_temp_id)
-        from_title = title_by_temp_id.get(pd.from_temp_id, pd.from_temp_id)
-        to_title = title_by_temp_id.get(pd.to_temp_id, pd.to_temp_id)
-        if from_id is None or to_id is None:
-            skipped_dependencies.append(
-                SkippedProposedDependency(from_title=from_title, to_title=to_title, reason="topic failed to persist"),
+    with SessionLocal() as session, session.begin():
+        for pt in proposal.topics:
+            row = _create_topic_in_session(session, TopicCreate(title=pt.title, summary=pt.summary))
+            temp_to_real[pt.temp_id] = row.id
+            created_topics.append(
+                Topic(
+                    id=row.id,
+                    title=row.title,
+                    summary=row.summary,
+                    status=row.status,
+                    resources=[],
+                    quiz_passed=row.quiz_passed,
+                    created_at=row.created_at,
+                    updated_at=row.updated_at,
+                ),
             )
-            continue
-        try:
-            payload = add_dependency(DependencyCreate(from_topic_id=from_id, to_topic_id=to_id))
-        except (DependencyCycleError, ValueError) as exc:
-            skipped_dependencies.append(
-                SkippedProposedDependency(from_title=from_title, to_title=to_title, reason=str(exc)),
+
+        for pd in proposal.dependencies:
+            from_id = temp_to_real.get(pd.from_temp_id)
+            to_id = temp_to_real.get(pd.to_temp_id)
+            from_title = title_by_temp_id.get(pd.from_temp_id, pd.from_temp_id)
+            to_title = title_by_temp_id.get(pd.to_temp_id, pd.to_temp_id)
+            if from_id is None or to_id is None:
+                skipped_dependencies.append(
+                    SkippedProposedDependency(from_title=from_title, to_title=to_title, reason="topic failed to persist"),
+                )
+                continue
+            try:
+                dep_row = _add_dependency_in_session(
+                    session,
+                    DependencyCreate(from_topic_id=from_id, to_topic_id=to_id),
+                )
+            except (DependencyCycleError, ValueError) as exc:
+                skipped_dependencies.append(
+                    SkippedProposedDependency(from_title=from_title, to_title=to_title, reason=str(exc)),
+                )
+                continue
+            created_dependencies.append(
+                Dependency(
+                    id=dep_row.id,
+                    from_topic_id=dep_row.from_topic_id,
+                    to_topic_id=dep_row.to_topic_id,
+                    created_at=dep_row.created_at,
+                ),
             )
-            continue
-        created_dependencies.append(Dependency.model_validate(payload))
 
     proposal.status = "applied"
     proposal.applied_at = datetime.now(timezone.utc)

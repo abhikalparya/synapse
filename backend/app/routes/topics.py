@@ -2,12 +2,13 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from app.models.topic import Dependency, DependencyCreate, Resource, ResourceCreate, Topic, TopicCreate, TopicUpdate
+from app.models.topic import Dependency, DependencyCreate, ResourceCreate, Topic, TopicCreate, TopicUpdate
 from app.services.file_handler import resolve_raw_note_file
 from app.services.quiz import load_quiz, quiz_gate_completion_enabled
 from app.services.topics import (
     DependencyCycleError,
     add_dependency,
+    attach_resource,
     get_topic_by_id,
     load_all_topics,
     load_dependencies,
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def _topic_out(row: dict) -> Topic:
-    return Topic.model_validate({k: v for k, v in row.items() if k != "path"})
+    return Topic.model_validate(row)
 
 
 @router.get("/topics", response_model=list[Topic])
@@ -77,9 +78,7 @@ async def add_resource(topic_id: str, body: ResourceCreate):
             detail=f"source_ref {body.source_ref!r} is not a known ingested note (see POST /ingest)",
         )
 
-    resource = Resource(type=body.type, source_ref=body.source_ref.strip(), title=body.title.strip())
-    resources = [*(row.get("resources") or []), resource.model_dump(mode="json")]
-    updated = update_topic(topic_id, resources=resources)
+    updated = attach_resource(topic_id, body)
     if updated is None:
         raise HTTPException(status_code=404, detail=f"No topic with id {topic_id!r}")
     return _topic_out(updated)

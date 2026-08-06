@@ -39,6 +39,13 @@ backend/raw_notes/*
 backend/wiki_pages/*
 !backend/wiki_pages/.gitkeep
 
+# Local runtime data (topic/dependency/proposal store, pre-SQLite JSON and the SQLite
+# db + snapshots alike — personal / bulky, never shared state)
+backend/topics/
+backend/proposals/
+backend/data/*
+!backend/data/.gitkeep
+
 # Logs and misc
 *.log
 npm-debug.log*

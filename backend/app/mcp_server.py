@@ -1,8 +1,8 @@
 """
 Read-only MCP bridge over Synapse's dependency graph -- lets external agents (Claude
 Desktop/Code, Cursor) query the current graph and study progress without going through
-the HTTP API. Reads the same topics/ + topics/_dependencies.json files the FastAPI
-backend uses, so it reflects live state whether or not `uvicorn app.main:app` is running.
+the HTTP API. Reads the same SQLite database (data/synapse.db) the FastAPI backend uses,
+so it reflects live state whether or not `uvicorn app.main:app` is running.
 
 Run directly (stdio transport, what Claude Desktop/Cursor expect):
     cd backend && python -m app.mcp_server
@@ -21,6 +21,7 @@ Claude Desktop / Cursor config (point "cwd" at this repo's backend/ directory):
 
 from mcp.server import MCPServer
 
+from app.models.topic import Topic
 from app.services.graph import build_dependency_graph, compute_prerequisite_chain
 from app.services.topics import get_topic_by_id, load_all_topics, load_dependencies
 
@@ -28,7 +29,8 @@ mcp = MCPServer("synapse", version="0.1.0")
 
 
 def _topic_public(row: dict) -> dict:
-    return {k: v for k, v in row.items() if k != "path"}
+    """Round-trip through the Topic model so datetimes serialize as ISO strings."""
+    return Topic.model_validate(row).model_dump(mode="json")
 
 
 @mcp.tool()

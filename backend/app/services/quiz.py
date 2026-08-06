@@ -7,27 +7,20 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
+
+from app.db.models import QuizRow
+from app.db.session import SessionLocal
 from app.models.quiz import Quiz, QuizPublic, QuizQuestion, QuizQuestionPublic, QuizResult, QuizResultQuestion, QuizSubmission
 from app.models.topic import Topic
 from app.prompts.quiz import build_quiz_prompt
 from app.services.file_handler import read_raw_note, resolve_raw_note_file
 from app.services.llm import call_llm
-from app.services.topics import TOPICS_DIR, get_topic_by_id, update_topic
+from app.services.topics import get_topic_by_id, update_topic
 
 logger = logging.getLogger(__name__)
-
-QUIZZES_DIR = TOPICS_DIR / "_quizzes"
-
-
-def _ensure_quizzes_dir() -> None:
-    QUIZZES_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _quiz_path(topic_id: str) -> Path:
-    return QUIZZES_DIR / f"{Path(topic_id).name}.json"
 
 
 def quiz_pass_threshold() -> float:
@@ -45,23 +38,26 @@ def quiz_gate_completion_enabled() -> bool:
 
 
 def save_quiz(quiz: Quiz) -> None:
-    _ensure_quizzes_dir()
-    _quiz_path(quiz.topic_id).write_text(
-        json.dumps(quiz.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    with SessionLocal() as session, session.begin():
+        row = session.get(QuizRow, quiz.topic_id)
+        if row is None:
+            row = QuizRow(topic_id=quiz.topic_id)
+            session.add(row)
+        row.questions = [q.model_dump(mode="json") for q in quiz.questions]
+        row.created_at = quiz.created_at or datetime.now(timezone.utc)
 
 
 def load_quiz(topic_id: str) -> Quiz | None:
-    path = _quiz_path(topic_id)
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return Quiz.model_validate(data)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        logger.warning("Failed to load quiz for topic %s: %s", topic_id, exc)
-        return None
+    with SessionLocal() as session:
+        row = session.get(QuizRow, topic_id)
+        if row is None:
+            return None
+        try:
+            questions = [QuizQuestion.model_validate(q) for q in row.questions]
+        except ValueError as exc:
+            logger.warning("Failed to load quiz for topic %s: %s", topic_id, exc)
+            return None
+        return Quiz(topic_id=row.topic_id, questions=questions, created_at=row.created_at)
 
 
 def _strip_json_fences(text: str) -> str:
@@ -103,7 +99,7 @@ async def generate_quiz_for_topic(topic_id: str) -> QuizPublic:
     row = get_topic_by_id(topic_id)
     if row is None:
         raise LookupError(f"No topic with id {topic_id!r}")
-    topic = Topic.model_validate({k: v for k, v in row.items() if k != "path"})
+    topic = Topic.model_validate(row)
 
     resource_texts = _collect_resource_texts(topic)
     if not topic.summary.strip() and not resource_texts:
