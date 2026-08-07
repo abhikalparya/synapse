@@ -25,6 +25,10 @@ coverage.xml
 frontend/node_modules/
 frontend/dist/
 
+# Claude Code local tooling config (browser-preview launch config, skills) -- not part
+# of the app, personal to this working setup
+.claude/
+
 # OS and editors
 .DS_Store
 Thumbs.db
