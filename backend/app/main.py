@@ -19,7 +19,7 @@ from app.routes.quiz import router as quiz_router
 from app.routes.stats import router as stats_router
 from app.routes.topics import router as topics_router
 from app.routes.zones import router as zones_router
-from app.services.llm import close_async_openai_client
+from app.services.llm import close_llm_provider
 
 _backend_dir = Path(__file__).resolve().parent.parent
 for _env_path in (_backend_dir.parent / ".env", _backend_dir / ".env"):
@@ -34,7 +34,7 @@ logging.basicConfig(
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield
-    await close_async_openai_client()
+    await close_llm_provider()
 
 
 app = FastAPI(title="Synapse", version="0.1.0", lifespan=_lifespan)

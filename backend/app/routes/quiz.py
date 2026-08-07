@@ -1,7 +1,6 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
-from openai import APIError
 
 from app.models.quiz import QuizPublic, QuizResult, QuizSubmission
 from app.services.quiz import generate_quiz_for_topic, submit_quiz
@@ -19,7 +18,7 @@ async def generate_quiz(topic_id: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (RuntimeError, APIError) as exc:
+    except RuntimeError as exc:
         logger.warning("POST /topics/%s/quiz failed: %s", topic_id, exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

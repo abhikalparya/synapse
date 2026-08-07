@@ -10,8 +10,6 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from openai import APIError
-
 from app.models.ai_ops import AuditFinding, AuditReport
 from app.prompts.audit import build_audit_prompt
 from app.services.llm import call_llm
@@ -91,7 +89,7 @@ async def _llm_findings(topics: list[dict], dependencies: list[dict]) -> list[Au
     try:
         raw = await call_llm(prompt)
         data = parse_llm_json_object(raw)
-    except (RuntimeError, ValueError, APIError) as exc:
+    except (RuntimeError, ValueError) as exc:
         logger.warning("Audit LLM pass failed, returning structural findings only: %s", exc)
         return []
 

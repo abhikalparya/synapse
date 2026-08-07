@@ -1,7 +1,6 @@
 import logging
 
 from fastapi import APIRouter, HTTPException
-from openai import APIError
 
 from app.models.ai_ops import AuditReport, ExpandRequest, IngestRequest, ReshapeRequest
 from app.models.proposal import Proposal
@@ -25,7 +24,7 @@ async def ingest(body: IngestRequest):
         return await run_ingest(goal=body.goal, topics=body.topics, filenames=body.filenames)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (RuntimeError, APIError) as exc:
+    except RuntimeError as exc:
         logger.warning("POST /ai/ingest failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -40,7 +39,7 @@ async def expand(body: ExpandRequest):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (RuntimeError, APIError) as exc:
+    except RuntimeError as exc:
         logger.warning("POST /ai/expand failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -54,7 +53,7 @@ async def reshape(body: ReshapeRequest):
         return await run_reshape(topic_ids=body.topic_ids, instructions=body.instructions)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (RuntimeError, APIError) as exc:
+    except RuntimeError as exc:
         logger.warning("POST /ai/reshape failed: %s", exc)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
