@@ -83,4 +83,3 @@ frontend/src/
   components/ KnowledgeGraph, NodeDetailsPanel, AiOperationsModal, SettingsPanel, ...
 ```
 
-`.claude/` (local editor/tooling config) is git-ignored and not part of the app.
