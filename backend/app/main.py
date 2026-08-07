@@ -13,6 +13,7 @@ from app.routes.ask import router as ask_router
 from app.routes.graph import router as graph_router
 from app.routes.ingest import router as ingest_router
 from app.routes.lint import router as lint_router
+from app.routes.obsidian import router as obsidian_router
 from app.routes.proposals import router as proposals_router
 from app.routes.quiz import router as quiz_router
 from app.routes.stats import router as stats_router
@@ -62,3 +63,4 @@ app.include_router(proposals_router)
 app.include_router(graph_router)
 app.include_router(stats_router)
 app.include_router(lint_router)
+app.include_router(obsidian_router)

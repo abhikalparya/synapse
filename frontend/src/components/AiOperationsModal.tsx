@@ -1,13 +1,14 @@
 import { useCallback, useId, useState, type FormEvent } from "react";
 import type { ApplyResponse, AuditReport, GraphNode, Proposal } from "../types";
 
-type Mode = "ingest" | "expand" | "audit" | "reshape";
+type Mode = "ingest" | "expand" | "audit" | "reshape" | "obsidian";
 
 const MODE_LABEL: Record<Mode, string> = {
   ingest: "Ingest",
   expand: "Expand",
   audit: "Audit",
   reshape: "Reshape",
+  obsidian: "Obsidian",
 };
 
 type Props = {
@@ -49,6 +50,7 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
   const [expandInstructions, setExpandInstructions] = useState("");
   const [reshapeTopicIds, setReshapeTopicIds] = useState<Set<string>>(new Set());
   const [reshapeInstructions, setReshapeInstructions] = useState("");
+  const [vaultPath, setVaultPath] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
     setExpandInstructions("");
     setReshapeTopicIds(new Set());
     setReshapeInstructions("");
+    setVaultPath("");
     setBusy(false);
     setError(null);
     setProposal(null);
@@ -141,6 +144,26 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
       setProposal(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to run reshape");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleObsidianImport(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = vaultPath.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await fetchJson<Proposal>("/obsidian/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vault_path: trimmed }),
+      });
+      setProposal(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import vault");
     } finally {
       setBusy(false);
     }
@@ -357,6 +380,36 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
                 </button>
                 <button type="submit" className="modal__btn modal__btn--primary" disabled={busy || reshapeTopicIds.size === 0}>
                   {busy ? "Running…" : "Reshape"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {mode === "obsidian" && !proposal ? (
+            <form onSubmit={handleObsidianImport}>
+              <label className="modal__label" htmlFor={`${idBase}-vault-path`}>
+                Vault path
+              </label>
+              <input
+                id={`${idBase}-vault-path`}
+                className="resource-form__input"
+                style={{ width: "100%" }}
+                value={vaultPath}
+                onChange={(e) => setVaultPath(e.target.value)}
+                placeholder="/absolute/path/to/obsidian-vault"
+                disabled={busy}
+              />
+              <p className="review-source">
+                Parses every .md note under this folder and proposes topics/dependencies from its [[wikilinks]] --
+                same review-before-apply flow as ingest.
+              </p>
+              {error ? <p className="modal__error">{error}</p> : null}
+              <div className="modal__actions">
+                <button type="button" className="modal__btn modal__btn--ghost" onClick={handleClose} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="submit" className="modal__btn modal__btn--primary" disabled={busy || !vaultPath.trim()}>
+                  {busy ? "Importing…" : "Import vault"}
                 </button>
               </div>
             </form>

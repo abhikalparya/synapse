@@ -5,10 +5,11 @@ real Topic/Dependency records.
 
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import select
 
-from app.db.models import ProposalRow
+from app.db.models import ProposalRow, ResourceRow
 from app.db.session import SessionLocal
 from app.models.proposal import (
     ApplyResponse,
@@ -20,7 +21,7 @@ from app.models.proposal import (
     ProposedTopicEdit,
     SkippedProposedDependency,
 )
-from app.models.topic import Dependency, DependencyCreate, Topic, TopicCreate
+from app.models.topic import Dependency, DependencyCreate, Resource, Topic, TopicCreate
 from app.services.snapshots import snapshot_graph
 from app.services.topics import (
     DependencyCycleError,
@@ -136,13 +137,32 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
         for pt in proposal.topics:
             row = _create_topic_in_session(session, TopicCreate(title=pt.title, summary=pt.summary))
             temp_to_real[pt.temp_id] = row.id
+            resources: list[Resource] = []
+            if pt.source_note_path:
+                # Phase 11 vault import: trace the created topic back to its source note.
+                resource_row = ResourceRow(
+                    topic_id=row.id,
+                    type="note",
+                    source_ref=pt.source_note_path,
+                    title=Path(pt.source_note_path).stem,
+                )
+                session.add(resource_row)
+                session.flush()
+                resources.append(
+                    Resource(
+                        id=resource_row.id,
+                        type=resource_row.type,
+                        source_ref=resource_row.source_ref,
+                        title=resource_row.title,
+                    ),
+                )
             created_topics.append(
                 Topic(
                     id=row.id,
                     title=row.title,
                     summary=row.summary,
                     status=row.status,
-                    resources=[],
+                    resources=resources,
                     quiz_passed=row.quiz_passed,
                     created_at=row.created_at,
                     updated_at=row.updated_at,

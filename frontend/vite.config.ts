@@ -12,6 +12,7 @@ export default defineConfig({
       "/ingest": { target: "http://127.0.0.1:8000", changeOrigin: true },
       "/ai": { target: "http://127.0.0.1:8000", changeOrigin: true },
       "/topics": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      "/obsidian": { target: "http://127.0.0.1:8000", changeOrigin: true },
       "/zones": { target: "http://127.0.0.1:8000", changeOrigin: true },
       "/dependencies": { target: "http://127.0.0.1:8000", changeOrigin: true },
       "/proposals": { target: "http://127.0.0.1:8000", changeOrigin: true },

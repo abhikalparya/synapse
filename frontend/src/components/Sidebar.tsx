@@ -65,6 +65,9 @@ export function Sidebar({
       <button type="button" className="sidebar__undo" onClick={onUndoLastChange} disabled={undoBusy}>
         {undoBusy ? "Undoing…" : "Undo last change"}
       </button>
+      <a className="sidebar__undo" href="/obsidian/export" download="synapse-export.zip">
+        Export to Obsidian vault
+      </a>
 
       <section className="sidebar__section">
         <h3>Graph stats</h3>

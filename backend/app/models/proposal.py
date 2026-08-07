@@ -14,6 +14,11 @@ class ProposedTopic(BaseModel):
     summary: str = ""
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     needs_review: bool = False
+    source_note_path: str | None = Field(
+        default=None,
+        description="Vault-relative path of the Obsidian note this topic came from (Phase 11 import only); "
+        "on apply, a matching Resource is attached to the created topic pointing back to it.",
+    )
 
 
 class ProposedDependency(BaseModel):

@@ -1869,6 +1869,7 @@
 }
 
 .sidebar__undo {
+  display: block;
   width: 100%;
   margin-top: 0.5rem;
   padding: 0.45rem 0.7rem;
@@ -1878,7 +1879,10 @@
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 600;
+  text-align: center;
+  text-decoration: none;
   cursor: pointer;
+  box-sizing: border-box;
   transition: background var(--transition), color var(--transition);
 }
 
