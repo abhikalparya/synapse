@@ -15,6 +15,7 @@ from app.services.topics import (
     save_topic,
     update_topic,
 )
+from app.services.zones import get_zone_by_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,18 +50,28 @@ async def patch_topic(topic_id: str, body: TopicUpdate):
     if row is None:
         raise HTTPException(status_code=404, detail=f"No topic with id {topic_id!r}")
 
-    if body.status is None:
+    patch: dict[str, object] = {}
+    fields_set = body.model_fields_set
+
+    if "status" in fields_set and body.status is not None:
+        if body.status == "complete" and quiz_gate_completion_enabled():
+            quiz = load_quiz(topic_id)
+            if quiz is not None and not row.get("quiz_passed", False):
+                raise HTTPException(
+                    status_code=409,
+                    detail="This topic has a quiz that hasn't been passed yet -- pass it before marking complete.",
+                )
+        patch["status"] = body.status
+
+    if "zone_id" in fields_set:
+        if body.zone_id is not None and get_zone_by_id(body.zone_id) is None:
+            raise HTTPException(status_code=422, detail=f"No zone with id {body.zone_id!r}")
+        patch["zone_id"] = body.zone_id
+
+    if not patch:
         return _topic_out(row)
 
-    if body.status == "complete" and quiz_gate_completion_enabled():
-        quiz = load_quiz(topic_id)
-        if quiz is not None and not row.get("quiz_passed", False):
-            raise HTTPException(
-                status_code=409,
-                detail="This topic has a quiz that hasn't been passed yet -- pass it before marking complete.",
-            )
-
-    updated = update_topic(topic_id, status=body.status)
+    updated = update_topic(topic_id, **patch)
     if updated is None:
         raise HTTPException(status_code=404, detail=f"No topic with id {topic_id!r}")
     return _topic_out(updated)

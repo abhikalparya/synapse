@@ -1,12 +1,15 @@
-import type { RecentNode, StatsResponse } from "../types";
+import { useState, type FormEvent } from "react";
+import type { RecentNode, StatsResponse, Zone } from "../types";
 
 type Props = {
   stats: StatsResponse | null;
   loading: boolean;
   onPickNode: (id: string) => void;
-  onGenerateRoadmap: () => void;
+  onOpenAiOperations: () => void;
   onUndoLastChange: () => void;
   undoBusy: boolean;
+  zones: Zone[];
+  onCreateZone: (label: string, color: string) => Promise<void>;
 };
 
 const STATUS_LABEL: Record<RecentNode["status"], string> = {
@@ -15,7 +18,35 @@ const STATUS_LABEL: Record<RecentNode["status"], string> = {
   complete: "Complete",
 };
 
-export function Sidebar({ stats, loading, onPickNode, onGenerateRoadmap, onUndoLastChange, undoBusy }: Props) {
+const DEFAULT_ZONE_COLOR = "#8b5cf6";
+
+export function Sidebar({
+  stats,
+  loading,
+  onPickNode,
+  onOpenAiOperations,
+  onUndoLastChange,
+  undoBusy,
+  zones,
+  onCreateZone,
+}: Props) {
+  const [zoneLabel, setZoneLabel] = useState("");
+  const [zoneColor, setZoneColor] = useState(DEFAULT_ZONE_COLOR);
+  const [zoneBusy, setZoneBusy] = useState(false);
+
+  async function handleCreateZone(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = zoneLabel.trim();
+    if (!trimmed || zoneBusy) return;
+    setZoneBusy(true);
+    try {
+      await onCreateZone(trimmed, zoneColor);
+      setZoneLabel("");
+    } finally {
+      setZoneBusy(false);
+    }
+  }
+
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
@@ -28,8 +59,8 @@ export function Sidebar({ stats, loading, onPickNode, onGenerateRoadmap, onUndoL
         </div>
       </div>
 
-      <button type="button" className="sidebar__add-note" onClick={onGenerateRoadmap}>
-        + Generate roadmap
+      <button type="button" className="sidebar__add-note" onClick={onOpenAiOperations}>
+        + AI operations
       </button>
       <button type="button" className="sidebar__undo" onClick={onUndoLastChange} disabled={undoBusy}>
         {undoBusy ? "Undoing…" : "Undo last change"}
@@ -53,6 +84,43 @@ export function Sidebar({ stats, loading, onPickNode, onGenerateRoadmap, onUndoL
         ) : (
           <p className="sidebar__muted">No stats yet.</p>
         )}
+      </section>
+
+      <section className="sidebar__section">
+        <h3>Zones</h3>
+        {zones.length === 0 ? (
+          <p className="sidebar__muted">No zones yet.</p>
+        ) : (
+          <ul className="zone-list">
+            {zones.map((z) => (
+              <li key={z.id} className="zone-list__item">
+                <span className="zone-list__swatch" style={{ background: z.color ?? DEFAULT_ZONE_COLOR }} aria-hidden />
+                {z.label}
+              </li>
+            ))}
+          </ul>
+        )}
+        <form className="zone-form" onSubmit={handleCreateZone}>
+          <input
+            type="color"
+            className="zone-form__color"
+            value={zoneColor}
+            onChange={(e) => setZoneColor(e.target.value)}
+            disabled={zoneBusy}
+            aria-label="Zone color"
+          />
+          <input
+            type="text"
+            className="zone-form__input"
+            placeholder="New zone label"
+            value={zoneLabel}
+            onChange={(e) => setZoneLabel(e.target.value)}
+            disabled={zoneBusy}
+          />
+          <button type="submit" className="zone-form__btn" disabled={zoneBusy || !zoneLabel.trim()}>
+            +
+          </button>
+        </form>
       </section>
 
       <section className="sidebar__section sidebar__section--grow">

@@ -31,6 +31,7 @@ def _topic_row_to_dict(row: TopicRow) -> dict[str, Any]:
             {"id": r.id, "type": r.type, "source_ref": r.source_ref, "title": r.title} for r in row.resources
         ],
         "quiz_passed": row.quiz_passed,
+        "zone_id": row.zone_id,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }
@@ -191,3 +192,84 @@ def add_dependency(data: DependencyCreate) -> dict:
         row = _add_dependency_in_session(session, data)
         result = _dependency_row_to_dict(row)
     return result
+
+
+def _remove_dependency_in_session(session: Session, from_topic_id: str, to_topic_id: str) -> bool:
+    """Delete an existing edge if present; returns whether anything was removed. Removing
+    an edge can never introduce a cycle, so unlike adds this needs no DAG check."""
+    row = session.scalar(
+        select(DependencyRow).where(
+            DependencyRow.from_topic_id == from_topic_id,
+            DependencyRow.to_topic_id == to_topic_id,
+        ),
+    )
+    if row is None:
+        return False
+    session.delete(row)
+    session.flush()
+    return True
+
+
+def _edit_topic_in_session(session: Session, topic_id: str, new_summary: str) -> TopicRow:
+    """Scoped edit: summary text only. Raises ValueError if the topic doesn't exist."""
+    row = session.get(TopicRow, topic_id)
+    if row is None:
+        raise ValueError(f"Unknown topic_id: {topic_id}")
+    row.summary = new_summary.strip()
+    row.updated_at = datetime.now(timezone.utc)
+    session.flush()
+    return row
+
+
+def _merge_topics_in_session(session: Session, source_topic_id: str, target_topic_id: str) -> None:
+    """
+    Merge ``source_topic_id`` into ``target_topic_id``: every dependency edge touching
+    the source is rewired onto the target (dropping any edge that would become a
+    self-loop or a duplicate of an edge the target already has), every resource moves
+    onto the target, then the source topic is deleted.
+
+    This can never introduce a cycle: the pre-merge graph is acyclic (enforced at write
+    time), and collapsing two nodes of a DAG into one only creates a cycle if a path
+    already existed in *both* directions between them -- which a DAG cannot have.
+    """
+    if source_topic_id == target_topic_id:
+        raise ValueError("Cannot merge a topic into itself")
+    source = session.get(TopicRow, source_topic_id)
+    if source is None:
+        raise ValueError(f"Unknown source_topic_id: {source_topic_id}")
+    target = session.get(TopicRow, target_topic_id)
+    if target is None:
+        raise ValueError(f"Unknown target_topic_id: {target_topic_id}")
+
+    touching = session.scalars(
+        select(DependencyRow).where(
+            (DependencyRow.from_topic_id == source_topic_id) | (DependencyRow.to_topic_id == source_topic_id),
+        ),
+    ).all()
+    for dep in touching:
+        new_from = target_topic_id if dep.from_topic_id == source_topic_id else dep.from_topic_id
+        new_to = target_topic_id if dep.to_topic_id == source_topic_id else dep.to_topic_id
+        if new_from == new_to:
+            session.delete(dep)
+            continue
+        duplicate = session.scalar(
+            select(DependencyRow).where(
+                DependencyRow.from_topic_id == new_from,
+                DependencyRow.to_topic_id == new_to,
+                DependencyRow.id != dep.id,
+            ),
+        )
+        if duplicate is not None:
+            session.delete(dep)
+            continue
+        dep.from_topic_id = new_from
+        dep.to_topic_id = new_to
+    session.flush()
+
+    for resource in list(source.resources):
+        resource.topic_id = target_topic_id
+    target.updated_at = datetime.now(timezone.utc)
+    session.flush()
+
+    session.delete(source)
+    session.flush()

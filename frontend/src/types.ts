@@ -15,11 +15,19 @@ export type GraphNode = {
   status?: TopicStatus;
   resources?: Resource[];
   quiz_passed?: boolean;
+  zone_id?: string | null;
   __deg?: number;
   x?: number;
   y?: number;
   vx?: number;
   vy?: number;
+};
+
+export type Zone = {
+  id: string;
+  label: string;
+  color: string | null;
+  created_at: string | null;
 };
 
 /** Directed prerequisite edge: ``source`` requires ``target``. */
@@ -80,19 +88,44 @@ export type ProposedDependency = {
   to_temp_id: string;
 };
 
+export type ProposedDependencyRemoval = {
+  from_topic_id: string;
+  to_topic_id: string;
+  reason: string;
+};
+
+export type ProposedMerge = {
+  source_topic_id: string;
+  target_topic_id: string;
+  reason: string;
+};
+
+export type ProposedTopicEdit = {
+  topic_id: string;
+  new_summary: string;
+  reason: string;
+};
+
 export type SkippedProposedDependency = {
   from_title: string;
   to_title: string;
   reason: string;
 };
 
-/** A pending/applied/discarded AI-proposed graph change, returned by POST /generate/roadmap. */
+export type ProposalMode = "ingest" | "expand" | "reshape";
+
+/** A pending/applied/discarded AI-proposed graph change, returned by one of the four
+ * /ai/{ingest,expand,reshape} operation-mode endpoints. */
 export type Proposal = {
   id: string;
   status: ProposalStatus;
+  mode: ProposalMode;
   source: string;
   topics: ProposedTopic[];
   dependencies: ProposedDependency[];
+  removed_dependencies: ProposedDependencyRemoval[];
+  merges: ProposedMerge[];
+  edits: ProposedTopicEdit[];
   skipped_dependencies: SkippedProposedDependency[];
   errors: string[];
   created_at: string | null;
@@ -115,6 +148,9 @@ export type ApplyResponse = {
   snapshot_id: string;
   created_topics: Topic[];
   created_dependencies: { id: string; from_topic_id: string; to_topic_id: string }[];
+  removed_dependency_count: number;
+  merged_topic_count: number;
+  edited_topic_count: number;
   skipped_dependencies: SkippedProposedDependency[];
 };
 
@@ -150,4 +186,32 @@ export type QuizResult = {
   correct_count: number;
   total: number;
   results: QuizResultQuestion[];
+};
+
+export type AuditFindingType = "orphaned_topic" | "duplicate_title" | "thin_topic" | "missing_prerequisite" | "cycle_risk";
+
+export type AuditFinding = {
+  type: AuditFindingType;
+  topic_ids: string[];
+  detail: string;
+};
+
+/** Read-only diagnostic report from POST /ai/audit -- never a Proposal, no Apply/Discard. */
+export type AuditReport = {
+  generated_at: string;
+  total_topics: number;
+  findings: AuditFinding[];
+};
+
+export type ArtifactType = "note" | "code_snippet" | "summary" | "generated_output";
+
+/** Something the learner PRODUCED while studying a topic -- distinct from Resource
+ * (something they studied FROM). */
+export type Artifact = {
+  id: string;
+  topic_id: string;
+  type: ArtifactType;
+  title: string;
+  content: string;
+  created_at: string | null;
 };

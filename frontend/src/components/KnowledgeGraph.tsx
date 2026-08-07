@@ -4,12 +4,14 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { MutableRefObject } from "react";
 import { BIRTH_TOTAL_MS, birthVisual } from "../graphBirth";
 import { QUERY_PULSE_TOTAL_MS, queryPulseScale } from "../graphQueryPulse";
-import type { GraphData, GraphLink, GraphNode, TopicStatus } from "../types";
-import { linkKey, neighborSets, nodeRadius } from "../graphUtils";
+import type { GraphData, GraphLink, GraphNode, TopicStatus, Zone } from "../types";
+import { drawZoneRegion, linkKey, neighborSets, nodeRadius } from "../graphUtils";
 
 const NO_BIRTH: readonly string[] = [];
 const NO_PATH_IDS: ReadonlySet<string> = new Set();
+const NO_ZONES: readonly Zone[] = [];
 const PATH_HIGHLIGHT_COLOR = "#4fd1ff";
+const DEFAULT_ZONE_COLOR = "#8b5cf6";
 
 const STATUS_COLORS: Record<TopicStatus, string> = {
   not_started: "#94a3b8",
@@ -61,6 +63,8 @@ type GraphAccessorCtx = {
   pathNodeIds: ReadonlySet<string>;
   /** Directed edge keys (``linkKey(source, target)``) along the highlighted chain. */
   pathLinkKeys: ReadonlySet<string>;
+  /** zone_id -> {color, member node ids}, precomputed from `zones` + current `data`. */
+  zoneMembership: Map<string, { color: string; nodeIds: string[] }>;
 };
 
 type PaintCtx = {
@@ -106,6 +110,8 @@ type Props = {
   pathNodeIds?: ReadonlySet<string>;
   /** Directed edge keys (``linkKey(source, target)``) along the highlighted chain. */
   pathLinkKeys?: ReadonlySet<string>;
+  /** Zones to render as background grouping regions behind their member nodes. */
+  zones?: readonly Zone[];
 };
 
 function wantGlowBefore(n: GraphNode, p: PaintCtx): boolean {
@@ -239,6 +245,7 @@ function KnowledgeGraphInner({
   structuralUpdatePulse = 0,
   pathNodeIds = NO_PATH_IDS,
   pathLinkKeys = NO_PATH_IDS,
+  zones = NO_ZONES,
 }: Props) {
   const fgRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -266,6 +273,18 @@ function KnowledgeGraphInner({
 
   const restrictLinksToFocus = Boolean(dimmingFocusId) && !hasQueryHighlight;
 
+  const zoneMembership = useMemo(() => {
+    const map = new Map<string, { color: string; nodeIds: string[] }>();
+    for (const z of zones) {
+      map.set(z.id, { color: z.color || DEFAULT_ZONE_COLOR, nodeIds: [] });
+    }
+    for (const n of data.nodes) {
+      const entry = n.zone_id ? map.get(n.zone_id) : undefined;
+      if (entry) entry.nodeIds.push(n.id);
+    }
+    return map;
+  }, [data, zones]);
+
   const graphAccessorRef = useRef<GraphAccessorCtx | undefined>(undefined);
   graphAccessorRef.current = {
     data,
@@ -276,6 +295,7 @@ function KnowledgeGraphInner({
     restrictLinksToFocus,
     pathNodeIds,
     pathLinkKeys,
+    zoneMembership,
   };
 
   const hoverDimRafRef = useRef(0);
@@ -521,6 +541,22 @@ function KnowledgeGraphInner({
     return g.focusLinkKeys.has(linkKey(s, t));
   }, []);
 
+  const renderZonesPre = useCallback((ctx: CanvasRenderingContext2D) => {
+    const g = graphAccessorRef.current;
+    if (!g || g.zoneMembership.size === 0) return;
+    const nodeById = new Map(g.data.nodes.map((n) => [n.id, n]));
+    for (const { color, nodeIds } of g.zoneMembership.values()) {
+      if (nodeIds.length === 0) continue;
+      const points = nodeIds
+        .map((id) => nodeById.get(id))
+        .filter((n): n is GraphNode => Boolean(n) && n!.x !== undefined && n!.y !== undefined)
+        .map((n) => ({ x: n.x as number, y: n.y as number }));
+      if (points.length === 0) continue;
+      const rgb = cssColorToRgbString(color);
+      drawZoneRegion(ctx, points, fadeRgbColor(rgb, 0.14), fadeRgbColor(rgb, 0.4));
+    }
+  }, []);
+
   const nodeLabel = useCallback(
     (n: GraphNode) => {
       const deg = n.__deg ?? 0;
@@ -566,6 +602,7 @@ function KnowledgeGraphInner({
         linkDirectionalArrowLength={4.5}
         linkDirectionalArrowRelPos={1}
         linkDirectionalArrowColor={linkColor}
+        onRenderFramePre={renderZonesPre}
         nodeLabel={nodeLabel}
         nodeVal={nodeVal}
         nodeRelSize={3.15}

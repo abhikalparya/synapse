@@ -29,6 +29,7 @@ def build_dependency_graph(
                 "status": str(row.get("status", "not_started")),
                 "resources": row.get("resources") or [],
                 "quiz_passed": bool(row.get("quiz_passed", False)),
+                "zone_id": row.get("zone_id"),
             },
         )
 

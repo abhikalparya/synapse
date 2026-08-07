@@ -149,3 +149,110 @@ export function nodeRadius(node: GraphNode, base = 3.1): number {
   const d = Math.max(0, node.__deg ?? 0);
   return base + Math.sqrt(d + 1) * 1.55;
 }
+
+export type Point = { x: number; y: number };
+
+/** Andrew's monotone-chain convex hull, O(n log n). Returns points in CCW order. */
+export function convexHull(points: Point[]): Point[] {
+  if (points.length < 3) return points;
+  const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  const lower: Point[] = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
+      lower.pop();
+    }
+    lower.push(p);
+  }
+
+  const upper: Point[] = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
+      upper.pop();
+    }
+    upper.push(p);
+  }
+
+  upper.pop();
+  lower.pop();
+  return [...lower, ...upper];
+}
+
+/** Pushes each hull vertex outward from the centroid by `padding` px, so the drawn region
+ * encloses its nodes with breathing room instead of connecting their exact centers. */
+function padHullOutward(hull: Point[], padding: number): Point[] {
+  const cx = hull.reduce((s, p) => s + p.x, 0) / hull.length;
+  const cy = hull.reduce((s, p) => s + p.y, 0) / hull.length;
+  return hull.map((p) => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: p.x + (dx / len) * padding, y: p.y + (dy / len) * padding };
+  });
+}
+
+/** Traces a soft "blob" path through points via quadratic curves through edge
+ * midpoints -- the standard trick for rounding a polygon without per-corner radius math. */
+function tracePolygonSmooth(ctx: CanvasRenderingContext2D, points: Point[]) {
+  const n = points.length;
+  const mid = (a: Point, b: Point) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const start = mid(points[n - 1], points[0]);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  for (let i = 0; i < n; i++) {
+    const p = points[i];
+    const next = points[(i + 1) % n];
+    const m = mid(p, next);
+    ctx.quadraticCurveTo(p.x, p.y, m.x, m.y);
+  }
+  ctx.closePath();
+}
+
+/** Draws a soft grouping region behind a zone's member nodes -- a circle for one node, a
+ * rounded capsule for two, a padded/smoothed convex hull for three or more. */
+export function drawZoneRegion(
+  ctx: CanvasRenderingContext2D,
+  points: Point[],
+  fillColor: string,
+  strokeColor: string,
+  padding = 34,
+) {
+  if (points.length === 0) return;
+
+  if (points.length === 1) {
+    ctx.beginPath();
+    ctx.arc(points[0].x, points[0].y, padding, 0, Math.PI * 2);
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    return;
+  }
+
+  if (points.length === 2) {
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+    ctx.strokeStyle = fillColor;
+    ctx.lineWidth = padding * 2;
+    ctx.stroke();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  const padded = padHullOutward(convexHull(points), padding);
+  tracePolygonSmooth(ctx, padded);
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}

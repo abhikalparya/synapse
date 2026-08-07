@@ -10,10 +10,26 @@ from sqlalchemy import select
 
 from app.db.models import ProposalRow
 from app.db.session import SessionLocal
-from app.models.proposal import ApplyResponse, Proposal, ProposedDependency, ProposedTopic, SkippedProposedDependency
+from app.models.proposal import (
+    ApplyResponse,
+    Proposal,
+    ProposedDependency,
+    ProposedDependencyRemoval,
+    ProposedMerge,
+    ProposedTopic,
+    ProposedTopicEdit,
+    SkippedProposedDependency,
+)
 from app.models.topic import Dependency, DependencyCreate, Topic, TopicCreate
 from app.services.snapshots import snapshot_graph
-from app.services.topics import DependencyCycleError, _add_dependency_in_session, _create_topic_in_session
+from app.services.topics import (
+    DependencyCycleError,
+    _add_dependency_in_session,
+    _create_topic_in_session,
+    _edit_topic_in_session,
+    _merge_topics_in_session,
+    _remove_dependency_in_session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +38,13 @@ def _proposal_row_to_model(row: ProposalRow) -> Proposal:
     return Proposal(
         id=row.id,
         status=row.status,
+        mode=row.mode,
         source=row.source,
         topics=[ProposedTopic.model_validate(t) for t in row.topics],
         dependencies=[ProposedDependency.model_validate(d) for d in row.dependencies],
+        removed_dependencies=[ProposedDependencyRemoval.model_validate(d) for d in row.removed_dependencies],
+        merges=[ProposedMerge.model_validate(m) for m in row.merges],
+        edits=[ProposedTopicEdit.model_validate(e) for e in row.edits],
         skipped_dependencies=[SkippedProposedDependency.model_validate(s) for s in row.skipped_dependencies],
         errors=list(row.errors or []),
         created_at=row.created_at,
@@ -40,9 +60,13 @@ def save_proposal(proposal: Proposal) -> None:
             row = ProposalRow(id=proposal.id)
             session.add(row)
         row.status = proposal.status
+        row.mode = proposal.mode
         row.source = proposal.source
         row.topics = [t.model_dump(mode="json") for t in proposal.topics]
         row.dependencies = [d.model_dump(mode="json") for d in proposal.dependencies]
+        row.removed_dependencies = [d.model_dump(mode="json") for d in proposal.removed_dependencies]
+        row.merges = [m.model_dump(mode="json") for m in proposal.merges]
+        row.edits = [e.model_dump(mode="json") for e in proposal.edits]
         row.skipped_dependencies = [s.model_dump(mode="json") for s in proposal.skipped_dependencies]
         row.errors = list(proposal.errors)
         row.created_at = proposal.created_at or datetime.now(timezone.utc)
@@ -79,13 +103,17 @@ def list_proposals(*, status: str | None = None) -> list[Proposal]:
 
 def apply_proposal(proposal_id: str) -> ApplyResponse:
     """
-    Commit a pending proposal: snapshot the whole graph first, then persist every proposed
-    topic and dependency in a single transaction -- if anything unexpected fails partway
-    through, the whole apply rolls back rather than leaving a half-applied graph (the flat-
-    JSON version couldn't offer this: each topic/dependency was its own separate file write).
-    A proposed dependency that fails its own cycle/uniqueness check is still just skipped and
-    reported, exactly as before -- that's an expected per-edge outcome, not a transaction
-    failure, so it's caught inside the loop rather than aborting the whole apply.
+    Commit a pending proposal: snapshot the whole graph first, then apply every proposed
+    operation -- new topics, new dependencies, dependency removals, topic edits, and
+    merges, in that order -- inside a single transaction. If anything unexpected fails
+    partway through, the whole apply rolls back rather than leaving a half-applied graph.
+
+    A proposed *dependency add* that fails its own cycle/uniqueness check is still just
+    skipped and reported (an expected per-edge outcome, caught inside the loop) --
+    removals, edits, and merges have no equivalent "expected failure" path, since they
+    only ever reference topics the proposal's own author (ingest/expand/reshape) already
+    confirmed exist at proposal-build time; if one fails here it's a real inconsistency
+    (e.g. the topic was deleted by another apply since), and the whole apply aborts.
     """
     proposal = load_proposal(proposal_id)
     if proposal is None:
@@ -100,6 +128,9 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
     created_dependencies: list[Dependency] = []
     skipped_dependencies: list[SkippedProposedDependency] = list(proposal.skipped_dependencies)
     title_by_temp_id = {pt.temp_id: pt.title for pt in proposal.topics}
+    removed_count = 0
+    edited_count = 0
+    merged_count = 0
 
     with SessionLocal() as session, session.begin():
         for pt in proposal.topics:
@@ -119,15 +150,13 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
             )
 
         for pd in proposal.dependencies:
-            from_id = temp_to_real.get(pd.from_temp_id)
-            to_id = temp_to_real.get(pd.to_temp_id)
+            # Either side may be a temp_id from this same proposal (new topic, just
+            # created above) or -- for expand/reshape -- the real id of a topic that
+            # already existed before this proposal; fall back to using it as-is.
+            from_id = temp_to_real.get(pd.from_temp_id, pd.from_temp_id)
+            to_id = temp_to_real.get(pd.to_temp_id, pd.to_temp_id)
             from_title = title_by_temp_id.get(pd.from_temp_id, pd.from_temp_id)
             to_title = title_by_temp_id.get(pd.to_temp_id, pd.to_temp_id)
-            if from_id is None or to_id is None:
-                skipped_dependencies.append(
-                    SkippedProposedDependency(from_title=from_title, to_title=to_title, reason="topic failed to persist"),
-                )
-                continue
             try:
                 dep_row = _add_dependency_in_session(
                     session,
@@ -147,16 +176,32 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
                 ),
             )
 
+        for rd in proposal.removed_dependencies:
+            if _remove_dependency_in_session(session, rd.from_topic_id, rd.to_topic_id):
+                removed_count += 1
+
+        for ed in proposal.edits:
+            _edit_topic_in_session(session, ed.topic_id, ed.new_summary)
+            edited_count += 1
+
+        for m in proposal.merges:
+            _merge_topics_in_session(session, m.source_topic_id, m.target_topic_id)
+            merged_count += 1
+
     proposal.status = "applied"
     proposal.applied_at = datetime.now(timezone.utc)
     proposal.snapshot_id = snapshot_id
     save_proposal(proposal)
 
     logger.info(
-        "Applied proposal %s: topics=%s dependencies=%s skipped=%s snapshot=%s",
+        "Applied proposal %s (mode=%s): topics=%s dependencies=%s removed=%s edited=%s merged=%s skipped=%s snapshot=%s",
         proposal_id,
+        proposal.mode,
         len(created_topics),
         len(created_dependencies),
+        removed_count,
+        edited_count,
+        merged_count,
         len(skipped_dependencies),
         snapshot_id,
     )
@@ -165,6 +210,9 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
         snapshot_id=snapshot_id,
         created_topics=created_topics,
         created_dependencies=created_dependencies,
+        removed_dependency_count=removed_count,
+        merged_topic_count=merged_count,
+        edited_topic_count=edited_count,
         skipped_dependencies=skipped_dependencies,
     )
 

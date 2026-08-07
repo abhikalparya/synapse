@@ -1,6 +1,6 @@
 """Reusable prompts for generating a topic + prerequisite-dependency DAG."""
 
-ROADMAP_JSON_SCHEMA = """You are a curriculum-design assistant. Given the goal/content below, break it into a \
+INGEST_JSON_SCHEMA = """You are a curriculum-design assistant. Given the goal/content below, break it into a \
 small set of discrete topics and the prerequisite relationships between them.
 
 Output rules:
@@ -33,11 +33,11 @@ Output rules:
   Low (0.0-0.4): speculative, a stretch from the given goal/content, or you are largely guessing it belongs."""
 
 
-def build_roadmap_generation_prompt(source_text: str, known_topic_titles: list[str] | None = None) -> str:
+def build_ingest_prompt(source_text: str, known_topic_titles: list[str] | None = None) -> str:
     """Full prompt string passed to the LLM (instruction + goal/content, minus already-known titles)."""
     body = source_text.strip()
     titles_block = ""
     if known_topic_titles:
         lines = "\n".join(f"- {t}" for t in known_topic_titles[:250])
         titles_block = f"\n\nExisting topic titles (avoid exact duplicates unless truly the same topic):\n{lines}\n"
-    return f"{ROADMAP_JSON_SCHEMA}{titles_block}\n\nGoal / content:\n---\n{body}\n---"
+    return f"{INGEST_JSON_SCHEMA}{titles_block}\n\nGoal / content:\n---\n{body}\n---"

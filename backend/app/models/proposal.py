@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 from app.models.topic import Dependency, Topic
 
+ProposalMode = Literal["ingest", "expand", "reshape"]
+
 
 class ProposedTopic(BaseModel):
     temp_id: str
@@ -15,8 +17,38 @@ class ProposedTopic(BaseModel):
 
 
 class ProposedDependency(BaseModel):
+    """Either side may be a temp_id (a new topic proposed alongside this) or the real id
+    of an existing topic already in the graph -- expand/reshape proposals routinely
+    anchor new/changed structure to topics that already exist."""
+
     from_temp_id: str
     to_temp_id: str
+
+
+class ProposedDependencyRemoval(BaseModel):
+    """Drops an existing edge; both ids must be real, already-persisted topic ids."""
+
+    from_topic_id: str
+    to_topic_id: str
+    reason: str = ""
+
+
+class ProposedMerge(BaseModel):
+    """Merges ``source_topic_id`` into ``target_topic_id``: every dependency and resource
+    on the source is rewired onto the target, then the source topic is deleted."""
+
+    source_topic_id: str
+    target_topic_id: str
+    reason: str = ""
+
+
+class ProposedTopicEdit(BaseModel):
+    """A scoped, low-risk edit to an existing topic -- summary text only, never id,
+    status, or dependencies."""
+
+    topic_id: str
+    new_summary: str
+    reason: str = ""
 
 
 class SkippedProposedDependency(BaseModel):
@@ -28,9 +60,13 @@ class SkippedProposedDependency(BaseModel):
 class Proposal(BaseModel):
     id: str
     status: Literal["pending", "applied", "discarded"] = "pending"
+    mode: ProposalMode = "ingest"
     source: str = Field(default="", description="Human-readable description of what generated this proposal")
     topics: list[ProposedTopic] = Field(default_factory=list)
     dependencies: list[ProposedDependency] = Field(default_factory=list)
+    removed_dependencies: list[ProposedDependencyRemoval] = Field(default_factory=list)
+    merges: list[ProposedMerge] = Field(default_factory=list)
+    edits: list[ProposedTopicEdit] = Field(default_factory=list)
     skipped_dependencies: list[SkippedProposedDependency] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     created_at: datetime | None = None
@@ -47,6 +83,9 @@ class ApplyResponse(BaseModel):
     snapshot_id: str
     created_topics: list[Topic]
     created_dependencies: list[Dependency]
+    removed_dependency_count: int = 0
+    merged_topic_count: int = 0
+    edited_topic_count: int = 0
     skipped_dependencies: list[SkippedProposedDependency] = Field(default_factory=list)
 
 

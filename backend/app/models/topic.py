@@ -22,6 +22,7 @@ class Topic(BaseModel):
     status: TopicStatus = Field(default="not_started")
     resources: list[Resource] = Field(default_factory=list)
     quiz_passed: bool = Field(default=False, description="Whether the current closure quiz has been passed")
+    zone_id: str | None = Field(default=None, description="Visual/logical grouping region this topic belongs to")
     created_at: datetime | None = Field(default=None)
     updated_at: datetime | None = Field(default=None)
 
@@ -48,6 +49,9 @@ class DependencyCreate(BaseModel):
 
 class TopicUpdate(BaseModel):
     status: TopicStatus | None = None
+    # None is ambiguous between "not provided" and "unassign" -- callers must check
+    # "zone_id" in body.model_fields_set to tell the two apart.
+    zone_id: str | None = None
 
 
 class ResourceCreate(BaseModel):

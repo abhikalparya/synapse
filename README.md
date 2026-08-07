@@ -13,7 +13,7 @@
 
 **A self-evolving knowledge system that transforms raw data into a structured, continuously improving knowledge graph.**
 
-Synapse is not a chatbot. It is a system that learns, restructures, and improves its own knowledge over time.
+> Synapse is not a chatbot. It is a system that learns, restructures, and improves its own knowledge over time.
 
 ## Why this matters
 

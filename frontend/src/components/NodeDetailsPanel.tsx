@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { neighborNodeIds } from "../graphUtils";
-import type { GraphData, GraphNode, QuizPublic, QuizResult, Resource, TopicStatus } from "../types";
+import type { Artifact, ArtifactType, GraphData, GraphNode, QuizPublic, QuizResult, Resource, TopicStatus, Zone } from "../types";
 
 const STATUS_LABEL: Record<TopicStatus, string> = {
   not_started: "Not started",
@@ -10,6 +10,7 @@ const STATUS_LABEL: Record<TopicStatus, string> = {
 
 const STATUS_ORDER: TopicStatus[] = ["not_started", "in_progress", "complete"];
 const RESOURCE_TYPES: Resource["type"][] = ["document", "note", "link"];
+const ARTIFACT_TYPES: ArtifactType[] = ["note", "code_snippet", "summary", "generated_output"];
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -32,11 +33,12 @@ type Props = {
   node: GraphNode | null;
   onClose: () => void;
   onNavigateToNode: (node: GraphNode) => void;
-  /** Called after a status change, resource attach, or quiz pass so the caller can refresh graph/stats. */
+  /** Called after a status change, resource attach, quiz pass, or zone change so the caller can refresh graph/stats. */
   onTopicChanged: () => void;
+  zones: Zone[];
 };
 
-export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, onTopicChanged }: Props) {
+export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, onTopicChanged, zones }: Props) {
   const related = useMemo(() => {
     if (!node) return [];
     const ids = neighborNodeIds(graphData, node.id);
@@ -59,6 +61,17 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
   const [quizBusy, setQuizBusy] = useState(false);
   const [quizError, setQuizError] = useState<string | null>(null);
 
+  const [zoneBusy, setZoneBusy] = useState(false);
+  const [zoneError, setZoneError] = useState<string | null>(null);
+
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [artifactType, setArtifactType] = useState<ArtifactType>("note");
+  const [artifactTitle, setArtifactTitle] = useState("");
+  const [artifactContent, setArtifactContent] = useState("");
+  const [artifactBusy, setArtifactBusy] = useState(false);
+  const [artifactError, setArtifactError] = useState<string | null>(null);
+
   useEffect(() => {
     setStatusError(null);
     setResourceRef("");
@@ -68,7 +81,28 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
     setQuizAnswers({});
     setQuizResult(null);
     setQuizError(null);
+    setZoneError(null);
+    setArtifacts([]);
+    setArtifactTitle("");
+    setArtifactContent("");
+    setArtifactError(null);
   }, [node?.id]);
+
+  const loadArtifacts = useCallback(async (topicId: string) => {
+    setArtifactsLoading(true);
+    try {
+      const list = await fetchJson<Artifact[]>(`/topics/${encodeURIComponent(topicId)}/artifacts`);
+      setArtifacts(list);
+    } catch {
+      setArtifacts([]);
+    } finally {
+      setArtifactsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (node?.id) void loadArtifacts(node.id);
+  }, [node?.id, loadArtifacts]);
 
   async function handleSetStatus(next: TopicStatus) {
     if (!node || statusBusy || node.status === next) return;
@@ -106,6 +140,45 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
       setResourceError(err instanceof Error ? err.message : "Failed to attach resource");
     } finally {
       setResourceBusy(false);
+    }
+  }
+
+  async function handleSetZone(zoneId: string) {
+    if (!node || zoneBusy) return;
+    setZoneBusy(true);
+    setZoneError(null);
+    try {
+      await fetchJson(`/topics/${encodeURIComponent(node.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zone_id: zoneId || null }),
+      });
+      onTopicChanged();
+    } catch (err) {
+      setZoneError(err instanceof Error ? err.message : "Failed to update zone");
+    } finally {
+      setZoneBusy(false);
+    }
+  }
+
+  async function handleCreateArtifact(e: FormEvent) {
+    e.preventDefault();
+    if (!node || artifactBusy || !artifactContent.trim()) return;
+    setArtifactBusy(true);
+    setArtifactError(null);
+    try {
+      await fetchJson(`/topics/${encodeURIComponent(node.id)}/artifacts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: artifactType, title: artifactTitle.trim(), content: artifactContent.trim() }),
+      });
+      setArtifactTitle("");
+      setArtifactContent("");
+      await loadArtifacts(node.id);
+    } catch (err) {
+      setArtifactError(err instanceof Error ? err.message : "Failed to save artifact");
+    } finally {
+      setArtifactBusy(false);
     }
   }
 
@@ -186,6 +259,25 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
             </section>
 
             <section className="node-card__section">
+              <h4>Zone</h4>
+              <select
+                className="resource-form__select"
+                style={{ width: "100%" }}
+                value={node.zone_id ?? ""}
+                onChange={(e) => void handleSetZone(e.target.value)}
+                disabled={zoneBusy}
+              >
+                <option value="">No zone</option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.label}
+                  </option>
+                ))}
+              </select>
+              {zoneError ? <p className="modal__error">{zoneError}</p> : null}
+            </section>
+
+            <section className="node-card__section">
               <h4>Resources</h4>
               {node.resources && node.resources.length > 0 ? (
                 <ul className="node-card__sources">
@@ -230,6 +322,64 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
                 </button>
               </form>
               {resourceError ? <p className="modal__error">{resourceError}</p> : null}
+            </section>
+
+            <section className="node-card__section">
+              <h4>Artifacts</h4>
+              {artifactsLoading ? (
+                <p className="sidebar__muted">Loading…</p>
+              ) : artifacts.length > 0 ? (
+                <ul className="node-card__sources">
+                  {artifacts.map((a) => (
+                    <li key={a.id}>
+                      [{a.type}] {a.title || "(untitled)"}: {a.content.length > 80 ? `${a.content.slice(0, 80)}…` : a.content}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="sidebar__muted">Nothing produced for this topic yet.</p>
+              )}
+              <form onSubmit={handleCreateArtifact}>
+                <div className="resource-form">
+                  <select
+                    className="resource-form__select"
+                    value={artifactType}
+                    onChange={(e) => setArtifactType(e.target.value as ArtifactType)}
+                    disabled={artifactBusy}
+                  >
+                    {ARTIFACT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="resource-form__input"
+                    placeholder="Title (optional)"
+                    value={artifactTitle}
+                    onChange={(e) => setArtifactTitle(e.target.value)}
+                    disabled={artifactBusy}
+                  />
+                </div>
+                <textarea
+                  className="modal__textarea"
+                  placeholder="What you produced -- a note, snippet, summary…"
+                  value={artifactContent}
+                  onChange={(e) => setArtifactContent(e.target.value)}
+                  rows={2}
+                  disabled={artifactBusy}
+                  style={{ marginTop: "0.4rem" }}
+                />
+                <button
+                  type="submit"
+                  className="resource-form__btn"
+                  style={{ marginTop: "0.4rem" }}
+                  disabled={artifactBusy || !artifactContent.trim()}
+                >
+                  {artifactBusy ? "Saving…" : "Save artifact"}
+                </button>
+              </form>
+              {artifactError ? <p className="modal__error">{artifactError}</p> : null}
             </section>
 
             <section className="node-card__section">

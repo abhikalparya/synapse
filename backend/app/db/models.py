@@ -56,6 +56,7 @@ class TopicRow(Base):
     summary: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(20), default="not_started")
     quiz_passed: Mapped[bool] = mapped_column(Boolean, default=False)
+    zone_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("zones.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
 
@@ -77,6 +78,34 @@ class ResourceRow(Base):
     title: Mapped[str] = mapped_column(Text, default="")
 
 
+class ZoneRow(Base):
+    """A visual/logical grouping region. Topics reference this via TopicRow.zone_id --
+    non-overlapping by design, so a topic belongs to at most one zone."""
+
+    __tablename__ = "zones"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    label: Mapped[str] = mapped_column(String(200), default="")
+    color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
+
+
+class ArtifactRow(Base):
+    """Output a learner produced while studying a topic (a note, code snippet, summary,
+    or generated output) -- distinct from ResourceRow, which is an input they studied
+    from. Not embedded in TopicRow's own serialization (content can be long); fetched via
+    dedicated endpoints instead."""
+
+    __tablename__ = "artifacts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    topic_id: Mapped[str] = mapped_column(String(32), ForeignKey("topics.id"), index=True)
+    type: Mapped[str] = mapped_column(String(30))
+    title: Mapped[str] = mapped_column(Text, default="")
+    content: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
+
+
 class DependencyRow(Base):
     """Directed prerequisite edge: ``from_topic`` requires ``to_topic``."""
 
@@ -93,9 +122,13 @@ class ProposalRow(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     status: Mapped[str] = mapped_column(String(20), default="pending")
+    mode: Mapped[str] = mapped_column(String(20), default="ingest")
     source: Mapped[str] = mapped_column(Text, default="")
     topics: Mapped[list] = mapped_column(JSON, default=list)
     dependencies: Mapped[list] = mapped_column(JSON, default=list)
+    removed_dependencies: Mapped[list] = mapped_column(JSON, default=list)
+    merges: Mapped[list] = mapped_column(JSON, default=list)
+    edits: Mapped[list] = mapped_column(JSON, default=list)
     skipped_dependencies: Mapped[list] = mapped_column(JSON, default=list)
     errors: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)

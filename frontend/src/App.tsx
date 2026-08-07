@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
-import { GenerateRoadmapModal } from "./components/GenerateRoadmapModal";
+import { AiOperationsModal } from "./components/AiOperationsModal";
 import { GraphSearchBar } from "./components/GraphSearchBar";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { NodeDetailsPanel } from "./components/NodeDetailsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { linkKey, prepareGraphData } from "./graphUtils";
-import type { ApplyResponse, GraphData, GraphNode, PathResponse, RollbackResponse, StatsResponse } from "./types";
+import type { ApplyResponse, GraphData, GraphNode, PathResponse, RollbackResponse, StatsResponse, Zone } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -39,9 +39,10 @@ export default function App() {
   const [reheatToken, setReheatToken] = useState(0);
   const [pathNodeIds, setPathNodeIds] = useState<Set<string>>(new Set());
   const [pathLinkKeys, setPathLinkKeys] = useState<Set<string>>(new Set());
-  const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [zones, setZones] = useState<Zone[]>([]);
 
   const graphAreaRef = useRef<HTMLDivElement>(null);
   const focusCameraNonceRef = useRef(0);
@@ -103,10 +104,19 @@ export default function App() {
     }
   }, []);
 
+  const refreshZones = useCallback(async () => {
+    try {
+      setZones(await fetchJson<Zone[]>("/zones"));
+    } catch {
+      setZones([]);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshGraph({ silent: false, preserveLayout: false });
     void refreshStats();
-  }, [refreshGraph, refreshStats]);
+    void refreshZones();
+  }, [refreshGraph, refreshStats, refreshZones]);
 
   useEffect(() => {
     const el = graphAreaRef.current;
@@ -163,6 +173,22 @@ export default function App() {
     await refreshGraph({ silent: true, preserveLayout: true });
     await refreshStats();
   }, [refreshGraph, refreshStats]);
+
+  const handleCreateZone = useCallback(
+    async (label: string, color: string) => {
+      try {
+        await fetchJson("/zones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label, color }),
+        });
+        await refreshZones();
+      } catch (e) {
+        setToast(e instanceof Error ? e.message : "Failed to create zone");
+      }
+    },
+    [refreshZones],
+  );
 
   const handleUndoLastChange = useCallback(async () => {
     setUndoBusy(true);
@@ -231,9 +257,11 @@ export default function App() {
         stats={stats}
         loading={statsLoading}
         onPickNode={handlePickNode}
-        onGenerateRoadmap={() => setGenerateModalOpen(true)}
+        onOpenAiOperations={() => setAiModalOpen(true)}
         onUndoLastChange={() => void handleUndoLastChange()}
         undoBusy={undoBusy}
+        zones={zones}
+        onCreateZone={handleCreateZone}
       />
 
       <main className="app__main">
@@ -292,6 +320,7 @@ export default function App() {
               focusCameraRequest={focusCameraRequest}
               pathNodeIds={pathNodeIds}
               pathLinkKeys={pathLinkKeys}
+              zones={zones}
             />
           ) : null}
         </div>
@@ -303,11 +332,13 @@ export default function App() {
         onClose={() => setSelectedNode(null)}
         onNavigateToNode={navigateToNode}
         onTopicChanged={() => void handleTopicChanged()}
+        zones={zones}
       />
 
-      <GenerateRoadmapModal
-        open={generateModalOpen}
-        onClose={() => setGenerateModalOpen(false)}
+      <AiOperationsModal
+        open={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        nodes={graphData.nodes}
         onApplied={(result) => void handleApplied(result)}
       />
     </div>
