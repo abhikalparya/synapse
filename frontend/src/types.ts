@@ -203,7 +203,7 @@ export type AuditReport = {
   findings: AuditFinding[];
 };
 
-export type ArtifactType = "note" | "code_snippet" | "summary" | "generated_output";
+export type ArtifactType = "note" | "code_snippet" | "summary" | "generated_output" | "qa_log";
 
 /** Something the learner PRODUCED while studying a topic -- distinct from Resource
  * (something they studied FROM). */
@@ -214,4 +214,10 @@ export type Artifact = {
   title: string;
   content: string;
   created_at: string | null;
+};
+
+/** One question/answer turn with the in-session assistant, scoped to a single topic. */
+export type AskResponse = {
+  answer: string;
+  artifact_id: string;
 };

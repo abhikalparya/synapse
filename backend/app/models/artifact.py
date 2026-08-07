@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ArtifactType = Literal["note", "code_snippet", "summary", "generated_output"]
+ArtifactType = Literal["note", "code_snippet", "summary", "generated_output", "qa_log"]
 
 
 class Artifact(BaseModel):

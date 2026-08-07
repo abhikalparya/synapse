@@ -2200,6 +2200,43 @@
   cursor: not-allowed;
 }
 
+.qa-log {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.qa-log__turn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.qa-log__question {
+  margin: 0 0 0.3rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.qa-log__answer {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+.qa-log__form {
+  display: flex;
+  flex-direction: column;
+}
+
 .audit-finding--orphaned_topic,
 .audit-finding--duplicate_title,
 .audit-finding--thin_topic {

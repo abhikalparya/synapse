@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { neighborNodeIds } from "../graphUtils";
-import type { Artifact, ArtifactType, GraphData, GraphNode, QuizPublic, QuizResult, Resource, TopicStatus, Zone } from "../types";
+import type {
+  AskResponse,
+  Artifact,
+  ArtifactType,
+  GraphData,
+  GraphNode,
+  QuizPublic,
+  QuizResult,
+  Resource,
+  TopicStatus,
+  Zone,
+} from "../types";
 
 const STATUS_LABEL: Record<TopicStatus, string> = {
   not_started: "Not started",
@@ -11,6 +22,7 @@ const STATUS_LABEL: Record<TopicStatus, string> = {
 const STATUS_ORDER: TopicStatus[] = ["not_started", "in_progress", "complete"];
 const RESOURCE_TYPES: Resource["type"][] = ["document", "note", "link"];
 const ARTIFACT_TYPES: ArtifactType[] = ["note", "code_snippet", "summary", "generated_output"];
+const QA_LOG_SEPARATOR = "\n\nA: ";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -72,6 +84,10 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
   const [artifactBusy, setArtifactBusy] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
 
+  const [askQuestion, setAskQuestion] = useState("");
+  const [askBusy, setAskBusy] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+
   useEffect(() => {
     setStatusError(null);
     setResourceRef("");
@@ -86,6 +102,8 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
     setArtifactTitle("");
     setArtifactContent("");
     setArtifactError(null);
+    setAskQuestion("");
+    setAskError(null);
   }, [node?.id]);
 
   const loadArtifacts = useCallback(async (topicId: string) => {
@@ -103,6 +121,21 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
   useEffect(() => {
     if (node?.id) void loadArtifacts(node.id);
   }, [node?.id, loadArtifacts]);
+
+  const studyArtifacts = useMemo(() => artifacts.filter((a) => a.type !== "qa_log"), [artifacts]);
+
+  const qaTurns = useMemo(
+    () =>
+      artifacts
+        .filter((a) => a.type === "qa_log")
+        .map((a) => {
+          const sepIndex = a.content.indexOf(QA_LOG_SEPARATOR);
+          return sepIndex === -1
+            ? { id: a.id, question: a.title || "(question)", answer: a.content }
+            : { id: a.id, question: a.content.slice(3, sepIndex), answer: a.content.slice(sepIndex + QA_LOG_SEPARATOR.length) };
+        }),
+    [artifacts],
+  );
 
   async function handleSetStatus(next: TopicStatus) {
     if (!node || statusBusy || node.status === next) return;
@@ -179,6 +212,26 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
       setArtifactError(err instanceof Error ? err.message : "Failed to save artifact");
     } finally {
       setArtifactBusy(false);
+    }
+  }
+
+  async function handleAsk(e: FormEvent) {
+    e.preventDefault();
+    if (!node || askBusy || !askQuestion.trim()) return;
+    setAskBusy(true);
+    setAskError(null);
+    try {
+      await fetchJson<AskResponse>(`/topics/${encodeURIComponent(node.id)}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: askQuestion.trim() }),
+      });
+      setAskQuestion("");
+      await loadArtifacts(node.id);
+    } catch (err) {
+      setAskError(err instanceof Error ? err.message : "Failed to get an answer");
+    } finally {
+      setAskBusy(false);
     }
   }
 
@@ -328,9 +381,9 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
               <h4>Artifacts</h4>
               {artifactsLoading ? (
                 <p className="sidebar__muted">Loading…</p>
-              ) : artifacts.length > 0 ? (
+              ) : studyArtifacts.length > 0 ? (
                 <ul className="node-card__sources">
-                  {artifacts.map((a) => (
+                  {studyArtifacts.map((a) => (
                     <li key={a.id}>
                       [{a.type}] {a.title || "(untitled)"}: {a.content.length > 80 ? `${a.content.slice(0, 80)}…` : a.content}
                     </li>
@@ -380,6 +433,41 @@ export function NodeDetailsPanel({ graphData, node, onClose, onNavigateToNode, o
                 </button>
               </form>
               {artifactError ? <p className="modal__error">{artifactError}</p> : null}
+            </section>
+
+            <section className="node-card__section">
+              <h4>Ask about this topic</h4>
+              {qaTurns.length > 0 ? (
+                <ul className="qa-log">
+                  {qaTurns.map((t) => (
+                    <li key={t.id} className="qa-log__turn">
+                      <p className="qa-log__question">{t.question}</p>
+                      <p className="qa-log__answer">{t.answer}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="sidebar__muted">No questions asked yet -- ask anything about this topic.</p>
+              )}
+              <form className="qa-log__form" onSubmit={handleAsk}>
+                <textarea
+                  className="modal__textarea"
+                  placeholder="Ask a question about this topic…"
+                  value={askQuestion}
+                  onChange={(e) => setAskQuestion(e.target.value)}
+                  rows={2}
+                  disabled={askBusy}
+                />
+                <button
+                  type="submit"
+                  className="resource-form__btn"
+                  style={{ marginTop: "0.4rem" }}
+                  disabled={askBusy || !askQuestion.trim()}
+                >
+                  {askBusy ? "Thinking…" : "Ask"}
+                </button>
+              </form>
+              {askError ? <p className="modal__error">{askError}</p> : null}
             </section>
 
             <section className="node-card__section">
