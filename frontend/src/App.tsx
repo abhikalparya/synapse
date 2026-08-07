@@ -4,6 +4,7 @@ import { AiOperationsModal } from "./components/AiOperationsModal";
 import { GraphSearchBar } from "./components/GraphSearchBar";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { NodeDetailsPanel } from "./components/NodeDetailsPanel";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { linkKey, prepareGraphData } from "./graphUtils";
 import type { ApplyResponse, GraphData, GraphNode, PathResponse, RollbackResponse, StatsResponse, Zone } from "./types";
@@ -40,6 +41,7 @@ export default function App() {
   const [pathNodeIds, setPathNodeIds] = useState<Set<string>>(new Set());
   const [pathLinkKeys, setPathLinkKeys] = useState<Set<string>>(new Set());
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [zones, setZones] = useState<Zone[]>([]);
@@ -258,6 +260,7 @@ export default function App() {
         loading={statsLoading}
         onPickNode={handlePickNode}
         onOpenAiOperations={() => setAiModalOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         onUndoLastChange={() => void handleUndoLastChange()}
         undoBusy={undoBusy}
         zones={zones}
@@ -341,6 +344,8 @@ export default function App() {
         nodes={graphData.nodes}
         onApplied={(result) => void handleApplied(result)}
       />
+
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

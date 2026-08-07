@@ -6,6 +6,7 @@ type Props = {
   loading: boolean;
   onPickNode: (id: string) => void;
   onOpenAiOperations: () => void;
+  onOpenSettings: () => void;
   onUndoLastChange: () => void;
   undoBusy: boolean;
   zones: Zone[];
@@ -25,6 +26,7 @@ export function Sidebar({
   loading,
   onPickNode,
   onOpenAiOperations,
+  onOpenSettings,
   onUndoLastChange,
   undoBusy,
   zones,
@@ -68,6 +70,9 @@ export function Sidebar({
       <a className="sidebar__undo" href="/obsidian/export" download="synapse-export.zip">
         Export to Obsidian vault
       </a>
+      <button type="button" className="sidebar__undo" onClick={onOpenSettings}>
+        Settings
+      </button>
 
       <section className="sidebar__section">
         <h3>Graph stats</h3>

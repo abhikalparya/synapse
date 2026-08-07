@@ -144,3 +144,15 @@ class QuizRow(Base):
     topic_id: Mapped[str] = mapped_column(String(32), ForeignKey("topics.id"), primary_key=True)
     questions: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
+
+
+class SettingsRow(Base):
+    """Singleton row (fixed id) holding local workspace-level LLM behavior settings --
+    Synapse has no multi-user/multi-workspace concept, so there's exactly one of these."""
+
+    __tablename__ = "settings"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    persona: Mapped[str] = mapped_column(Text, default="")
+    memory_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    thinking_level: Mapped[str] = mapped_column(String(20), default="standard")

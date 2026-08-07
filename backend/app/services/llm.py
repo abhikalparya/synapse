@@ -10,6 +10,13 @@ from app.models.query import QueryLlmAnswer
 from app.services.llm_providers.base import LLMProvider
 from app.services.llm_providers.gemini_provider import GeminiProvider
 from app.services.llm_providers.openai_provider import OpenAIProvider
+from app.services.settings import load_settings
+
+_EXTENDED_THINKING_INSTRUCTION = (
+    "Before giving your final answer, think through this step by step -- consider edge "
+    "cases and alternatives rather than responding with your first instinct. Still follow "
+    "every output-format rule above exactly."
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,16 +108,36 @@ async def close_llm_provider() -> None:
         await provider.aclose()
 
 
+def _apply_settings(prompt: str) -> str:
+    """Append the configured persona and/or extended-thinking nudge to every prompt.
+    Appended rather than prepended so each call site's own output-format instructions
+    (e.g. ingest/audit's "respond with ONLY valid JSON") stay first and freshest in
+    context -- persona/thinking are a styling/deliberation layer on top, not a
+    replacement for the structural contract."""
+    settings = load_settings()
+    suffix_parts: list[str] = []
+    persona = (settings.get("persona") or "").strip()
+    if persona:
+        suffix_parts.append(persona)
+    if settings.get("thinking_level") == "extended":
+        suffix_parts.append(_EXTENDED_THINKING_INSTRUCTION)
+    if not suffix_parts:
+        return prompt
+    return prompt + "\n\n" + "\n\n".join(suffix_parts)
+
+
 async def call_llm(prompt: str) -> str:
     """
     Send a single prompt string to the configured provider's chat model and return the
     assistant message text (empty string if the model returns no content). Every ingest
     /expand/audit/reshape/quiz-generation/ask call in the app goes through this one
-    function -- swapping providers never requires touching any of those call sites.
+    function -- swapping providers never requires touching any of those call sites, and
+    neither does applying the configured persona/thinking settings (Phase 13).
     """
     provider = _get_provider()
-    logger.debug("LLM request provider=%s prompt_chars=%s", type(provider).__name__, len(prompt))
-    text = await provider.complete(prompt)
+    full_prompt = _apply_settings(prompt)
+    logger.debug("LLM request provider=%s prompt_chars=%s", type(provider).__name__, len(full_prompt))
+    text = await provider.complete(full_prompt)
     logger.debug("LLM response_chars=%s", len(text))
     return text
 

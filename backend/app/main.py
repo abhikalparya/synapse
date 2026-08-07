@@ -16,6 +16,7 @@ from app.routes.lint import router as lint_router
 from app.routes.obsidian import router as obsidian_router
 from app.routes.proposals import router as proposals_router
 from app.routes.quiz import router as quiz_router
+from app.routes.settings import router as settings_router
 from app.routes.stats import router as stats_router
 from app.routes.topics import router as topics_router
 from app.routes.zones import router as zones_router
@@ -64,3 +65,4 @@ app.include_router(graph_router)
 app.include_router(stats_router)
 app.include_router(lint_router)
 app.include_router(obsidian_router)
+app.include_router(settings_router)

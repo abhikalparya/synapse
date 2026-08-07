@@ -24,6 +24,7 @@ def build_ask_prompt(
     resources: list[dict[str, str]],
     artifacts: list[dict[str, str]],
     question: str,
+    history: list[tuple[str, str]] | None = None,
 ) -> str:
     parts = [ASK_SYSTEM_PREAMBLE, f"Topic: {topic_title}\nSummary: {topic_summary or '(no summary)'}"]
 
@@ -36,6 +37,11 @@ def build_ask_prompt(
             f"- [{a['type']}] {a['title'] or '(untitled)'}: {a['content']}" for a in artifacts
         )
         parts.append(f"Things the learner has already produced for this topic:\n{lines}")
+
+    if history:
+        # Memory setting (Phase 13): prior turns in this topic's Q&A, most recent last.
+        lines = "\n".join(f"Q: {q}\nA: {a}" for q, a in history)
+        parts.append(f"Earlier questions you already answered in this conversation:\n{lines}")
 
     parts.append(f"Learner's question:\n{question.strip()}")
     return "\n\n".join(parts)

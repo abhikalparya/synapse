@@ -221,3 +221,12 @@ export type AskResponse = {
   answer: string;
   artifact_id: string;
 };
+
+export type ThinkingLevel = "standard" | "extended";
+
+/** Local workspace-level LLM behavior settings (Phase 13) -- singleton, no per-user concept. */
+export type Settings = {
+  persona: string;
+  memory_enabled: boolean;
+  thinking_level: ThinkingLevel;
+};
