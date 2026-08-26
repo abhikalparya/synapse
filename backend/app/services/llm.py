@@ -1,8 +1,16 @@
+import json
 import logging
 import os
 import threading
+import time
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from typing import Iterator
 
-from app.services.llm_providers.base import LLMProvider
+from app.db.session import DATA_DIR
+from app.services.llm_providers.base import LLMProvider, LLMResult
 from app.services.llm_providers.gemini_provider import GeminiProvider
 from app.services.llm_providers.openai_provider import OpenAIProvider
 from app.services.settings import load_settings
@@ -17,6 +25,28 @@ logger = logging.getLogger(__name__)
 
 _provider_lock = threading.Lock()
 _provider: LLMProvider | None = None
+
+_llm_operation: ContextVar[str] = ContextVar("llm_operation", default="")
+_llm_sink: ContextVar[list | None] = ContextVar("llm_sink", default=None)
+
+LLM_USAGE_LOG = DATA_DIR / "llm_usage.jsonl"
+
+
+@dataclass
+class LLMCallRecord:
+    """One instrumented LLM call -- used by evaluation cost/latency aggregation."""
+
+    text: str
+    latency_ms: float
+    provider: str
+    model: str
+    input_tokens: int | None
+    output_tokens: int | None
+    tokens_estimated: bool
+    estimated_cost_usd: float | None
+    success: bool
+    error: str | None = None
+    operation: str = ""
 
 
 def _clean(raw: str | None) -> str:
@@ -39,6 +69,7 @@ def _build_provider() -> LLMProvider:
             model=_clean(os.environ.get("OPENAI_MODEL")) or "gpt-4o-mini",
             organization=_clean(os.environ.get("OPENAI_ORGANIZATION") or os.environ.get("OPENAI_ORG_ID")) or None,
             project=_clean(os.environ.get("OPENAI_PROJECT")) or None,
+            provider_name="openai",
         )
 
     if provider_name == "gemini":
@@ -57,7 +88,7 @@ def _build_provider() -> LLMProvider:
         # Self-hosted/local endpoints routinely don't check the key at all; default to a
         # placeholder rather than forcing OPENAI_COMPATIBLE_API_KEY on every setup.
         api_key = _clean(os.environ.get("OPENAI_COMPATIBLE_API_KEY")) or "not-required"
-        return OpenAIProvider(api_key=api_key, model=model, base_url=base_url)
+        return OpenAIProvider(api_key=api_key, model=model, base_url=base_url, provider_name="openai_compatible")
 
     raise RuntimeError(f"Unknown LLM_PROVIDER {provider_name!r} -- expected 'openai', 'gemini', or 'openai_compatible'")
 
@@ -83,6 +114,13 @@ async def close_llm_provider() -> None:
         await provider.aclose()
 
 
+def reset_llm_provider() -> None:
+    """Drop the cached provider so the next call rebuilds from current env (e.g. model override)."""
+    global _provider
+    with _provider_lock:
+        _provider = None
+
+
 def _apply_settings(prompt: str) -> str:
     """Append the configured persona and/or extended-thinking nudge to every prompt.
     Appended rather than prepended so each call site's own output-format instructions
@@ -101,7 +139,125 @@ def _apply_settings(prompt: str) -> str:
     return prompt + "\n\n" + "\n\n".join(suffix_parts)
 
 
-async def call_llm(prompt: str) -> str:
+@contextmanager
+def llm_operation(name: str) -> Iterator[None]:
+    """Label LLM calls made inside this block (ingest, expand, audit, …)."""
+    token = _llm_operation.set(name)
+    try:
+        yield
+    finally:
+        _llm_operation.reset(token)
+
+
+@contextmanager
+def capture_llm_calls() -> Iterator[list[LLMCallRecord]]:
+    """Collect ``LLMCallRecord``s for the current task (used by the evaluation runner).
+
+    Nested captures extend the parent sink so operation-level wrappers still roll up.
+    """
+    records: list[LLMCallRecord] = []
+    parent = _llm_sink.get()
+    token = _llm_sink.set(records)
+    try:
+        yield records
+    finally:
+        _llm_sink.reset(token)
+        if parent is not None:
+            parent.extend(records)
+
+
+def _estimate_cost_usd(model: str, input_tokens: int | None, output_tokens: int | None) -> float | None:
+    """Lazy import so production LLM calls don't hard-depend on the evaluation package
+    being importable in every context. Returns None when the model has no priced entry."""
+    try:
+        from app.evaluation.cost import estimate_cost_usd
+    except Exception:
+        return None
+    return estimate_cost_usd(model, input_tokens, output_tokens)
+
+
+def _append_usage_log(record: LLMCallRecord) -> None:
+    if os.environ.get("SYNAPSE_LOG_LLM_USAGE", "1").strip().lower() in ("0", "false", "no", "off"):
+        return
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **{k: v for k, v in asdict(record).items() if k != "text"},
+            "response_chars": len(record.text),
+        }
+        with LLM_USAGE_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        logger.warning("Failed to append LLM usage log: %s", exc)
+
+
+def _publish_record(record: LLMCallRecord) -> None:
+    sink = _llm_sink.get()
+    if sink is not None:
+        sink.append(record)
+    _append_usage_log(record)
+
+
+async def call_llm_detailed(
+    prompt: str,
+    *,
+    temperature: float | None = None,
+    seed: int | None = None,
+) -> LLMCallRecord:
+    """Like ``call_llm`` but returns latency/usage. Evaluation prefers this entry point."""
+    operation = _llm_operation.get()
+    provider = _get_provider()
+    full_prompt = _apply_settings(prompt)
+    temp = 0.3 if temperature is None else temperature
+    started = time.perf_counter()
+    try:
+        result: LLMResult = await provider.complete(full_prompt, temperature=temp, seed=seed)
+        latency_ms = (time.perf_counter() - started) * 1000.0
+        usage = result.usage
+        record = LLMCallRecord(
+            text=result.text,
+            latency_ms=latency_ms,
+            provider=usage.provider,
+            model=usage.model,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            tokens_estimated=usage.estimated,
+            estimated_cost_usd=_estimate_cost_usd(usage.model, usage.input_tokens, usage.output_tokens),
+            success=True,
+            operation=operation,
+        )
+        _publish_record(record)
+        logger.debug(
+            "LLM ok provider=%s model=%s latency_ms=%.1f in=%s out=%s estimated=%s",
+            record.provider,
+            record.model,
+            record.latency_ms,
+            record.input_tokens,
+            record.output_tokens,
+            record.tokens_estimated,
+        )
+        return record
+    except Exception as exc:
+        latency_ms = (time.perf_counter() - started) * 1000.0
+        record = LLMCallRecord(
+            text="",
+            latency_ms=latency_ms,
+            provider=getattr(provider, "provider_name", "unknown"),
+            model=getattr(provider, "model", "unknown"),
+            input_tokens=None,
+            output_tokens=None,
+            tokens_estimated=True,
+            estimated_cost_usd=None,
+            success=False,
+            error=str(exc),
+            operation=operation,
+        )
+        _publish_record(record)
+        raise
+
+
+async def call_llm(prompt: str, *, temperature: float | None = None, seed: int | None = None) -> str:
     """
     Send a single prompt string to the configured provider's chat model and return the
     assistant message text (empty string if the model returns no content). Every ingest
@@ -109,9 +265,5 @@ async def call_llm(prompt: str) -> str:
     function -- swapping providers never requires touching any of those call sites, and
     neither does applying the configured persona/thinking settings (Phase 13).
     """
-    provider = _get_provider()
-    full_prompt = _apply_settings(prompt)
-    logger.debug("LLM request provider=%s prompt_chars=%s", type(provider).__name__, len(full_prompt))
-    text = await provider.complete(full_prompt)
-    logger.debug("LLM response_chars=%s", len(text))
-    return text
+    record = await call_llm_detailed(prompt, temperature=temperature, seed=seed)
+    return record.text

@@ -10,7 +10,7 @@ import logging
 from app.models.artifact import ArtifactCreate
 from app.prompts.ask import build_ask_prompt
 from app.services.artifacts import create_artifact, list_artifacts_for_topic
-from app.services.llm import call_llm
+from app.services.llm import call_llm, llm_operation
 from app.services.settings import load_settings
 from app.services.topics import get_topic_by_id
 
@@ -56,7 +56,8 @@ async def answer_topic_question(topic_id: str, question: str) -> dict | None:
         question=question,
         history=history,
     )
-    answer = (await call_llm(prompt)).strip()
+    with llm_operation("ask"):
+        answer = (await call_llm(prompt)).strip()
 
     log_title = question.strip()
     if len(log_title) > _QA_LOG_TITLE_MAX:

@@ -432,11 +432,22 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
 
           {auditReport ? (
             <div>
+              {auditReport.status === "partial" || auditReport.semantic_analysis === "unavailable" ? (
+                <p className="audit-degraded" role="status">
+                  Degraded mode: structural findings only. Semantic AI analysis was unavailable
+                  {auditReport.semantic_error ? ` (${auditReport.semantic_error})` : ""}.
+                </p>
+              ) : null}
               <p className="review-source">
-                {auditReport.total_topics} topic(s) analyzed, {auditReport.findings.length} finding(s).
+                {auditReport.total_topics} topic(s) analyzed, {auditReport.findings.length} finding(s)
+                {auditReport.semantic_analysis === "unavailable" ? " (structural only)" : ""}.
               </p>
               {auditReport.findings.length === 0 ? (
-                <p className="sidebar__muted">No issues found.</p>
+                <p className="sidebar__muted">
+                  {auditReport.semantic_analysis === "unavailable"
+                    ? "No structural issues found. Semantic analysis was unavailable."
+                    : "No issues found."}
+                </p>
               ) : (
                 <div className="review-list">
                   {auditReport.findings.map((f, i) => (

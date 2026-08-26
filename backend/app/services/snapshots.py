@@ -19,11 +19,13 @@ from typing import Any
 from sqlalchemy import func, select
 
 from app.db.models import DependencyRow, TopicRow
-from app.db.session import DATA_DIR, DB_PATH, SessionLocal, engine
+from app.db.session import DB_PATH, SessionLocal, engine
+from app.services.proposal_events import log_rollback
 
 logger = logging.getLogger(__name__)
 
-SNAPSHOTS_DIR = DATA_DIR / "_snapshots"
+# Keep snapshots beside the live DB so SYNAPSE_DB_PATH isolation also isolates rollback files.
+SNAPSHOTS_DIR = DB_PATH.parent / "_snapshots"
 
 
 def _ensure_snapshots_dir() -> None:
@@ -91,6 +93,7 @@ def restore_snapshot(snapshot_id: str | None = None) -> dict[str, Any]:
         n_deps = session.scalar(select(func.count()).select_from(DependencyRow)) or 0
 
     logger.info("Restored graph snapshot %s (topics=%s, dependencies=%s)", resolved_id, n_topics, n_deps)
+    log_rollback(resolved_id)
     return {
         "snapshot_id": resolved_id,
         "restored_topics": n_topics,

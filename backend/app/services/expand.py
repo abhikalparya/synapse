@@ -10,8 +10,9 @@ from datetime import datetime, timezone
 
 from app.models.proposal import Proposal
 from app.prompts.expand import build_expand_prompt
-from app.services.llm import call_llm
+from app.services.llm import call_llm, llm_operation
 from app.services.proposal_common import build_topics_and_dependencies, parse_llm_json_object, review_confidence_threshold
+from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
 from app.services.topics import get_topic_by_id, load_all_topics, load_dependencies
 
@@ -37,7 +38,8 @@ async def run_expand(*, topic_id: str, instructions: str | None) -> Proposal:
         existing_prereq_titles = [title_by_id[i] for i in existing_prereq_ids if i in title_by_id]
 
     prompt = build_expand_prompt(row["title"], row["summary"], existing_prereq_titles, instructions)
-    raw = await call_llm(prompt)
+    with llm_operation("expand"):
+        raw = await call_llm(prompt)
     data = parse_llm_json_object(raw)
 
     raw_topics = data.get("topics")
@@ -69,6 +71,7 @@ async def run_expand(*, topic_id: str, instructions: str | None) -> Proposal:
         created_at=datetime.now(timezone.utc),
     )
     save_proposal(proposal)
+    log_proposal_created(proposal)
 
     logger.info(
         "Expand proposal %s built for topic %s: topics=%s dependencies=%s skipped=%s",

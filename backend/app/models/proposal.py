@@ -74,6 +74,13 @@ class Proposal(BaseModel):
     edits: list[ProposedTopicEdit] = Field(default_factory=list)
     skipped_dependencies: list[SkippedProposedDependency] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    generation_meta: dict = Field(
+        default_factory=dict,
+        description=(
+            "Structured generation observability (strategy, domain, inventory version, "
+            "fallback). Not used for graph mutation."
+        ),
+    )
     created_at: datetime | None = None
     applied_at: datetime | None = None
     snapshot_id: str | None = Field(default=None, description="Snapshot taken immediately before this was applied")

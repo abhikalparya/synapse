@@ -1,5 +1,5 @@
 """Ingest mode: goal / topic-dump / ingested notes -> a reviewable Proposal of new topics
-and dependencies. One of four AI operation modes (ingest/expand/audit/reshape) -- this is
+and dependencies. Among AI operation modes (ingest/expand/audit/reshape), this is
 the only one that starts from raw external input rather than an existing part of the graph.
 
 Nothing here writes to the graph -- ``run_ingest`` only builds and persists a ``Proposal``
@@ -16,8 +16,10 @@ from datetime import datetime, timezone
 from app.models.proposal import Proposal
 from app.prompts.ingest import build_ingest_prompt
 from app.services.file_handler import read_raw_note, resolve_raw_note_file
-from app.services.llm import call_llm
+from app.services.generation_strategy import resolve_runtime_generation_strategy
+from app.services.llm import call_llm, llm_operation
 from app.services.proposal_common import build_topics_and_dependencies, parse_llm_json_object, review_confidence_threshold
+from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
 from app.services.topics import load_all_topics
 
@@ -69,22 +71,63 @@ async def run_ingest(
     goal: str | None,
     topics: list[str] | None,
     filenames: list[str] | None,
+    generation_strategy: str | None = None,
+    curriculum_domain: str | None = None,
+    require_domain_prior: bool = False,
 ) -> Proposal:
     """
     Call the LLM for a topic + dependency DAG from the given source(s) and build (and
     persist) a pending Proposal -- no topics or dependencies are written to the graph.
-    Every candidate dependency is checked against the DAG-cycle invariant in-memory
-    against the other proposed edges; edges that would close a cycle (or reference an
-    unknown title) are skipped and reported, never silently dropped. Topics below the
-    confidence threshold are flagged ``needs_review`` for the reviewer, not auto-rejected.
+
+    Product strategies:
+    - ``baseline`` (default / production)
+    - ``domain_curriculum_prior`` (opt-in experimental)
+    - ``domain_prior_edge_classifier`` (experimental only)
+
+    Closed experiments (Concept-First, coverage recovery) are evaluation-only and are
+    not routed through this product path.
     """
     source_text, source_errors, source_label = _build_source_text(goal, topics, filenames)
     if not source_text.strip():
         raise ValueError("Provide at least one of: goal, topics, filenames (with resolvable content)")
 
+    strategy = resolve_runtime_generation_strategy(generation_strategy)
+    if strategy == "domain_curriculum_prior":
+        return await _run_ingest_domain_curriculum_prior(
+            source_text=source_text,
+            source_errors=source_errors,
+            source_label=source_label,
+            curriculum_domain=curriculum_domain,
+            require_domain_prior=require_domain_prior,
+        )
+    if strategy == "domain_prior_edge_classifier":
+        return await _run_ingest_domain_prior_edge_classifier(
+            source_text=source_text,
+            source_errors=source_errors,
+            source_label=source_label,
+            curriculum_domain=curriculum_domain,
+            require_domain_prior=require_domain_prior,
+        )
+
+    return await _run_ingest_baseline(
+        source_text=source_text,
+        source_errors=source_errors,
+        source_label=source_label,
+        generation_meta={"generation_strategy": "baseline"},
+    )
+
+
+async def _run_ingest_baseline(
+    *,
+    source_text: str,
+    source_errors: list[str],
+    source_label: str,
+    generation_meta: dict | None = None,
+) -> Proposal:
     known_titles = sorted({str(r.get("title", "")).strip() for r in load_all_topics() if r.get("title")})
     prompt = build_ingest_prompt(source_text, known_topic_titles=known_titles)
-    raw = await call_llm(prompt)
+    with llm_operation("ingest"):
+        raw = await call_llm(prompt)
     data = parse_llm_json_object(raw)
 
     raw_topics = data.get("topics")
@@ -100,6 +143,7 @@ async def run_ingest(
         confidence_threshold=review_confidence_threshold(),
     )
 
+    meta = dict(generation_meta or {"generation_strategy": "baseline"})
     proposal = Proposal(
         id=uuid.uuid4().hex,
         status="pending",
@@ -109,16 +153,226 @@ async def run_ingest(
         dependencies=proposed_dependencies,
         skipped_dependencies=skipped_dependencies,
         errors=list(source_errors),
+        generation_meta=meta,
         created_at=datetime.now(timezone.utc),
     )
     save_proposal(proposal)
+    log_proposal_created(proposal)
 
     logger.info(
-        "Ingest proposal %s built: topics=%s dependencies=%s skipped=%s needs_review=%s",
+        "Ingest proposal %s built: strategy=%s topics=%s dependencies=%s skipped=%s needs_review=%s",
         proposal.id,
+        meta.get("generation_strategy"),
         len(proposed_topics),
         len(proposed_dependencies),
         len(skipped_dependencies),
         sum(1 for t in proposed_topics if t.needs_review),
+    )
+    return proposal
+
+
+async def _run_ingest_domain_curriculum_prior(
+    *,
+    source_text: str,
+    source_errors: list[str],
+    source_label: str,
+    curriculum_domain: str | None = None,
+    require_domain_prior: bool = False,
+) -> Proposal:
+    import os
+
+    from app.curriculum.resolution import resolve_domain, resolution_to_meta
+    from app.services.domain_curriculum_prior import run_domain_curriculum_prior_pipeline
+
+    env_domain = (os.environ.get("SYNAPSE_CURRICULUM_DOMAIN") or "").strip()
+    resolution = resolve_domain(
+        domain_override=curriculum_domain or env_domain or None,
+        require_inventory=True,
+        on_unresolved="error" if require_domain_prior else "baseline",
+        on_unavailable="error" if require_domain_prior else "baseline",
+    )
+    if not resolution.ok:
+        reason = resolution.fallback_reason or resolution.status
+        if require_domain_prior or resolution.fallback_action == "error":
+            raise ValueError(
+                f"{reason}: domain_curriculum_prior requires a resolvable domain "
+                "with a frozen inventory (set curriculum_domain / SYNAPSE_CURRICULUM_DOMAIN)"
+            )
+        logger.info(
+            "Domain curriculum prior unavailable (%s); falling back to baseline",
+            reason,
+        )
+        return await _run_ingest_baseline(
+            source_text=source_text,
+            source_errors=source_errors,
+            source_label=source_label,
+            generation_meta={
+                "generation_strategy": "baseline",
+                "fallback_reason": reason,
+                **resolution_to_meta(resolution),
+                "requested_strategy": "domain_curriculum_prior",
+            },
+        )
+
+    domain = resolution.domain or ""
+    result = await run_domain_curriculum_prior_pipeline(source_text, domain=domain)
+    if not result.parse_ok or not result.topics:
+        detail = "; ".join(result.errors) or "domain curriculum prior failed"
+        raise ValueError(f"Domain curriculum prior ingest failed: {detail}")
+    if result.new_concept_count:
+        raise ValueError(
+            f"Domain curriculum prior invented concepts rejected: new_concept_count="
+            f"{result.new_concept_count}"
+        )
+
+    raw_topics = [
+        {
+            "title": t["title"],
+            "summary": t.get("summary", ""),
+            "confidence": t.get("confidence", 0.7),
+        }
+        for t in result.topics
+    ]
+    raw_deps = list(result.dependencies)
+    proposed_topics, proposed_dependencies, skipped_dependencies = build_topics_and_dependencies(
+        raw_topics,
+        raw_deps,
+        confidence_threshold=review_confidence_threshold(),
+    )
+    if result.skipped_dependencies and not skipped_dependencies:
+        skipped_dependencies = list(result.skipped_dependencies)
+
+    errors = list(source_errors)
+    errors.extend(result.errors)
+    meta = {
+        **result.to_meta(),
+        **resolution_to_meta(resolution),
+    }
+    proposal = Proposal(
+        id=uuid.uuid4().hex,
+        status="pending",
+        mode="ingest",
+        source=(
+            f"{source_label} [generation_strategy=domain_curriculum_prior "
+            f"domain={domain} inventory_version={result.inventory_version}]"
+        ),
+        topics=proposed_topics,
+        dependencies=proposed_dependencies,
+        skipped_dependencies=skipped_dependencies,
+        errors=errors,
+        generation_meta=meta,
+        created_at=datetime.now(timezone.utc),
+    )
+    save_proposal(proposal)
+    log_proposal_created(proposal)
+    logger.info(
+        "Domain-curriculum-prior ingest proposal %s built: domain=%s topics=%s deps=%s",
+        proposal.id,
+        domain,
+        len(proposed_topics),
+        len(proposed_dependencies),
+    )
+    return proposal
+
+
+async def _run_ingest_domain_prior_edge_classifier(
+    *,
+    source_text: str,
+    source_errors: list[str],
+    source_label: str,
+    curriculum_domain: str | None = None,
+    require_domain_prior: bool = False,
+) -> Proposal:
+    import os
+
+    from app.curriculum.resolution import resolve_domain, resolution_to_meta
+    from app.services.domain_prior_edge_classifier import (
+        run_domain_prior_edge_classifier_pipeline,
+    )
+
+    env_domain = (os.environ.get("SYNAPSE_CURRICULUM_DOMAIN") or "").strip()
+    resolution = resolve_domain(
+        domain_override=curriculum_domain or env_domain or None,
+        require_inventory=True,
+        on_unresolved="error" if require_domain_prior else "baseline",
+        on_unavailable="error" if require_domain_prior else "baseline",
+    )
+    if not resolution.ok:
+        reason = resolution.fallback_reason or resolution.status
+        if require_domain_prior or resolution.fallback_action == "error":
+            raise ValueError(
+                f"{reason}: domain_prior_edge_classifier requires a resolvable domain "
+                "with a frozen inventory (set curriculum_domain / SYNAPSE_CURRICULUM_DOMAIN)"
+            )
+        logger.info(
+            "Domain prior edge classifier unavailable (%s); falling back to baseline",
+            reason,
+        )
+        return await _run_ingest_baseline(
+            source_text=source_text,
+            source_errors=source_errors,
+            source_label=source_label,
+            generation_meta={
+                "generation_strategy": "baseline",
+                "fallback_reason": reason,
+                **resolution_to_meta(resolution),
+                "requested_strategy": "domain_prior_edge_classifier",
+            },
+        )
+
+    domain = resolution.domain or ""
+    result = await run_domain_prior_edge_classifier_pipeline(source_text, domain=domain)
+    if not result.parse_ok or not result.topics:
+        detail = "; ".join(result.errors) or "domain prior edge classifier failed"
+        raise ValueError(f"Domain prior edge classifier ingest failed: {detail}")
+    if result.new_concept_count:
+        raise ValueError(
+            f"Domain prior edge classifier invented concepts rejected: new_concept_count="
+            f"{result.new_concept_count}"
+        )
+
+    raw_topics = [
+        {
+            "title": t["title"],
+            "summary": t.get("summary", ""),
+            "confidence": t.get("confidence", 0.7),
+        }
+        for t in result.topics
+    ]
+    raw_deps = list(result.dependencies)
+    proposed_topics, proposed_dependencies, skipped_dependencies = build_topics_and_dependencies(
+        raw_topics,
+        raw_deps,
+        confidence_threshold=review_confidence_threshold(),
+    )
+    if result.skipped_dependencies and not skipped_dependencies:
+        skipped_dependencies = list(result.skipped_dependencies)
+
+    errors = list(source_errors)
+    errors.extend(result.errors)
+    meta = {**result.to_meta(), **resolution_to_meta(resolution)}
+    proposal = Proposal(
+        id=uuid.uuid4().hex,
+        status="pending",
+        mode="ingest",
+        source=(
+            f"{source_label} [generation_strategy=domain_prior_edge_classifier "
+            f"domain={domain}]"
+        ),
+        topics=proposed_topics,
+        dependencies=proposed_dependencies,
+        skipped_dependencies=skipped_dependencies,
+        errors=errors,
+        generation_meta=meta,
+        created_at=datetime.now(timezone.utc),
+    )
+    save_proposal(proposal)
+    log_proposal_created(proposal)
+    logger.info(
+        "Domain-prior-edge-classifier ingest proposal %s built: domain=%s topics=%s deps=%s",
+        proposal.id,
+        domain,
+        len(proposed_topics),
+        len(proposed_dependencies),
     )
     return proposal

@@ -131,6 +131,7 @@ class ProposalRow(Base):
     edits: Mapped[list] = mapped_column(JSON, default=list)
     skipped_dependencies: Mapped[list] = mapped_column(JSON, default=list)
     errors: Mapped[list] = mapped_column(JSON, default=list)
+    generation_meta: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
     applied_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     snapshot_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

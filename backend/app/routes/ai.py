@@ -21,7 +21,14 @@ async def ingest(body: IngestRequest):
     until it's committed with POST /apply.
     """
     try:
-        return await run_ingest(goal=body.goal, topics=body.topics, filenames=body.filenames)
+        return await run_ingest(
+            goal=body.goal,
+            topics=body.topics,
+            filenames=body.filenames,
+            generation_strategy=body.generation_strategy,
+            curriculum_domain=body.curriculum_domain,
+            require_domain_prior=body.require_domain_prior,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:

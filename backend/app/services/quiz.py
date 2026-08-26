@@ -17,7 +17,7 @@ from app.models.quiz import Quiz, QuizPublic, QuizQuestion, QuizQuestionPublic, 
 from app.models.topic import Topic
 from app.prompts.quiz import build_quiz_prompt
 from app.services.file_handler import read_raw_note, resolve_raw_note_file
-from app.services.llm import call_llm
+from app.services.llm import call_llm, llm_operation
 from app.services.topics import get_topic_by_id, update_topic
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,8 @@ async def generate_quiz_for_topic(topic_id: str) -> QuizPublic:
         raise ValueError("Topic has no summary or readable resources to quiz from")
 
     prompt = build_quiz_prompt(topic.title, topic.summary, resource_texts)
-    raw = await call_llm(prompt)
+    with llm_operation("quiz"):
+        raw = await call_llm(prompt)
     data = _parse_quiz_json(raw)
 
     raw_questions = data.get("questions")

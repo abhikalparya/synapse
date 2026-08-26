@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from app.models.ai_ops import AuditFinding, AuditReport
 from app.prompts.audit import build_audit_prompt
-from app.services.llm import call_llm
+from app.services.llm import call_llm, llm_operation
 from app.services.proposal_common import parse_llm_json_object
 from app.services.topics import load_all_topics, load_dependencies
 
@@ -73,12 +73,12 @@ def _structural_findings(topics: list[dict], dependencies: list[dict]) -> list[A
     return findings
 
 
-async def _llm_findings(topics: list[dict], dependencies: list[dict]) -> list[AuditFinding]:
+async def _llm_findings(topics: list[dict], dependencies: list[dict]) -> tuple[list[AuditFinding], str | None]:
     """Judgment-based checks that need semantic understanding of the topics' content, not
-    just graph structure. Degrades gracefully (returns nothing) on any LLM failure --
-    audit's structural findings should never be blocked by an LLM hiccup."""
+    just graph structure. Returns (findings, error). On LLM failure, findings is empty and
+    error is set so the report can surface degraded mode explicitly."""
     if not topics:
-        return []
+        return [], None
 
     title_by_id = {t["id"]: str(t.get("title", "")).strip() or t["id"] for t in topics}
     prompt = build_audit_prompt(
@@ -87,11 +87,12 @@ async def _llm_findings(topics: list[dict], dependencies: list[dict]) -> list[Au
     )
 
     try:
-        raw = await call_llm(prompt)
+        with llm_operation("audit"):
+            raw = await call_llm(prompt)
         data = parse_llm_json_object(raw)
-    except (RuntimeError, ValueError) as exc:
+    except (RuntimeError, ValueError, TypeError) as exc:
         logger.warning("Audit LLM pass failed, returning structural findings only: %s", exc)
-        return []
+        return [], str(exc)
 
     title_to_id = {v.casefold(): k for k, v in title_by_id.items()}
     findings: list[AuditFinding] = []
@@ -108,16 +109,41 @@ async def _llm_findings(topics: list[dict], dependencies: list[dict]) -> list[Au
         titles = [str(t).strip() for t in raw_titles] if isinstance(raw_titles, list) else []
         ids = [title_to_id[t.casefold()] for t in titles if t.casefold() in title_to_id]
         findings.append(AuditFinding(type=ftype, topic_ids=ids, detail=detail))
-    return findings
+    return findings, None
+
+
+async def audit_graph(topics: list[dict], dependencies: list[dict]) -> AuditReport:
+    """Run production structural + semantic audit on an in-memory graph (no DB I/O)."""
+    structural = _structural_findings(topics, dependencies)
+    semantic, semantic_error = await _llm_findings(topics, dependencies)
+
+    if semantic_error is not None:
+        status = "partial"
+        semantic_analysis = "unavailable"
+        findings = list(structural)
+    else:
+        status = "ok"
+        semantic_analysis = "available"
+        findings = [*structural, *semantic]
+
+    logger.info(
+        "Audit report: %s topic(s), %s finding(s), status=%s semantic=%s",
+        len(topics),
+        len(findings),
+        status,
+        semantic_analysis,
+    )
+    return AuditReport(
+        generated_at=datetime.now(timezone.utc),
+        total_topics=len(topics),
+        findings=findings,
+        status=status,
+        semantic_analysis=semantic_analysis,
+        semantic_error=semantic_error,
+        structural_findings=structural,
+    )
 
 
 async def run_audit() -> AuditReport:
     """Read-only: loads topics/dependencies and returns a report. Nothing here writes."""
-    topics = load_all_topics()
-    dependencies = load_dependencies()
-
-    findings = _structural_findings(topics, dependencies)
-    findings.extend(await _llm_findings(topics, dependencies))
-
-    logger.info("Audit report: %s topic(s), %s finding(s)", len(topics), len(findings))
-    return AuditReport(generated_at=datetime.now(timezone.utc), total_topics=len(topics), findings=findings)
+    return await audit_graph(load_all_topics(), load_dependencies())

@@ -17,9 +17,10 @@ from pathlib import Path
 from app.models.proposal import Proposal
 from app.prompts.obsidian import build_obsidian_import_prompt
 from app.services.graph import compute_prerequisite_chain
-from app.services.llm import call_llm
+from app.services.llm import call_llm, llm_operation
 from app.services.obsidian_vault import load_vault
 from app.services.proposal_common import build_topics_and_dependencies, parse_llm_json_object, review_confidence_threshold
+from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
 from app.services.topics import load_all_topics, load_dependencies
 
@@ -51,7 +52,8 @@ async def import_vault(vault_path: str) -> Proposal:
         [(n.title, n.body, n.links) for n in notes],
         known_topic_titles=known_titles,
     )
-    raw = await call_llm(prompt)
+    with llm_operation("obsidian_import"):
+        raw = await call_llm(prompt)
     data = parse_llm_json_object(raw)
 
     raw_topics = data.get("topics")
@@ -88,6 +90,7 @@ async def import_vault(vault_path: str) -> Proposal:
         created_at=datetime.now(timezone.utc),
     )
     save_proposal(proposal)
+    log_proposal_created(proposal)
 
     logger.info(
         "Obsidian import proposal %s built from %s notes: topics=%s dependencies=%s skipped=%s",

@@ -201,6 +201,11 @@ export type AuditReport = {
   generated_at: string;
   total_topics: number;
   findings: AuditFinding[];
+  /** "partial" when structural checks ran but semantic LLM analysis was unavailable. */
+  status?: "ok" | "partial";
+  semantic_analysis?: "available" | "unavailable";
+  semantic_error?: string | null;
+  structural_findings?: AuditFinding[];
 };
 
 export type ArtifactType = "note" | "code_snippet" | "summary" | "generated_output" | "qa_log";

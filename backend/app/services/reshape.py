@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from app.models.proposal import (
     Proposal,
@@ -21,8 +22,9 @@ from app.models.proposal import (
     SkippedProposedDependency,
 )
 from app.prompts.reshape import build_reshape_prompt
-from app.services.llm import call_llm
+from app.services.llm import call_llm, llm_operation
 from app.services.proposal_common import parse_llm_json_object, review_confidence_threshold
+from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
 from app.services.topics import get_topic_by_id, load_all_topics, load_dependencies, would_create_cycle
 
@@ -31,6 +33,48 @@ logger = logging.getLogger(__name__)
 
 def _resolve_title(title: str, title_to_id: dict[str, str]) -> str | None:
     return title_to_id.get(title.strip().casefold())
+
+
+def filter_reshape_new_dependencies(
+    raw_deps: list[Any],
+    *,
+    title_to_id: dict[str, str],
+    accepted_dep_dicts: list[dict[str, str]],
+) -> tuple[list[ProposedDependency], list[SkippedProposedDependency]]:
+    """Production reshape edge filter: unknown/out-of-scope titles and cycles are skipped.
+
+    ``accepted_dep_dicts`` is mutated as edges are accepted (same as ``run_reshape``).
+    """
+    proposed_dependencies: list[ProposedDependency] = []
+    skipped_dependencies: list[SkippedProposedDependency] = []
+    for row in raw_deps:
+        if not isinstance(row, dict):
+            continue
+        from_title = str(row.get("from", "")).strip()
+        to_title = str(row.get("to", "")).strip()
+        from_id = _resolve_title(from_title, title_to_id)
+        to_id = _resolve_title(to_title, title_to_id)
+        if from_id is None or to_id is None:
+            skipped_dependencies.append(
+                SkippedProposedDependency(
+                    from_title=from_title,
+                    to_title=to_title,
+                    reason="unknown or out-of-scope topic reference",
+                ),
+            )
+            continue
+        if would_create_cycle(from_id, to_id, accepted_dep_dicts):
+            skipped_dependencies.append(
+                SkippedProposedDependency(
+                    from_title=from_title,
+                    to_title=to_title,
+                    reason="would create a cycle",
+                ),
+            )
+            continue
+        accepted_dep_dicts.append({"from_topic_id": from_id, "to_topic_id": to_id})
+        proposed_dependencies.append(ProposedDependency(from_temp_id=from_id, to_temp_id=to_id))
+    return proposed_dependencies, skipped_dependencies
 
 
 async def run_reshape(*, topic_ids: list[str], instructions: str | None) -> Proposal:
@@ -71,7 +115,8 @@ async def run_reshape(*, topic_ids: list[str], instructions: str | None) -> Prop
         boundary_edges=boundary_edges,
         instructions=instructions,
     )
-    raw = await call_llm(prompt)
+    with llm_operation("reshape"):
+        raw = await call_llm(prompt)
     data = parse_llm_json_object(raw)
 
     # Only selected-topic titles resolve -- boundary/outside titles are deliberately never
@@ -106,27 +151,11 @@ async def run_reshape(*, topic_ids: list[str], instructions: str | None) -> Prop
         if d["from_topic_id"] in selected_set and d["to_topic_id"] in selected_set
     ]
 
-    proposed_dependencies: list[ProposedDependency] = []
-    skipped_dependencies: list[SkippedProposedDependency] = []
-    for row in data.get("new_dependencies") or []:
-        if not isinstance(row, dict):
-            continue
-        from_title = str(row.get("from", "")).strip()
-        to_title = str(row.get("to", "")).strip()
-        from_id = _resolve_title(from_title, title_to_id)
-        to_id = _resolve_title(to_title, title_to_id)
-        if from_id is None or to_id is None:
-            skipped_dependencies.append(
-                SkippedProposedDependency(from_title=from_title, to_title=to_title, reason="unknown or out-of-scope topic reference"),
-            )
-            continue
-        if would_create_cycle(from_id, to_id, accepted_dep_dicts):
-            skipped_dependencies.append(
-                SkippedProposedDependency(from_title=from_title, to_title=to_title, reason="would create a cycle"),
-            )
-            continue
-        accepted_dep_dicts.append({"from_topic_id": from_id, "to_topic_id": to_id})
-        proposed_dependencies.append(ProposedDependency(from_temp_id=from_id, to_temp_id=to_id))
+    proposed_dependencies, skipped_dependencies = filter_reshape_new_dependencies(
+        list(data.get("new_dependencies") or []),
+        title_to_id=title_to_id,
+        accepted_dep_dicts=accepted_dep_dicts,
+    )
 
     errors: list[str] = []
 
@@ -192,6 +221,7 @@ async def run_reshape(*, topic_ids: list[str], instructions: str | None) -> Prop
         created_at=datetime.now(timezone.utc),
     )
     save_proposal(proposal)
+    log_proposal_created(proposal)
 
     logger.info(
         "Reshape proposal %s built: new_topics=%s new_deps=%s removed=%s merges=%s edits=%s skipped=%s",

@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.db.models import ProposalRow, ResourceRow
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, ensure_proposal_generation_meta_column
 from app.models.proposal import (
     ApplyResponse,
     Proposal,
@@ -22,6 +22,7 @@ from app.models.proposal import (
     SkippedProposedDependency,
 )
 from app.models.topic import Dependency, DependencyCreate, Resource, Topic, TopicCreate
+from app.services.proposal_events import log_proposal_applied, log_proposal_discarded
 from app.services.snapshots import snapshot_graph
 from app.services.topics import (
     DependencyCycleError,
@@ -36,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 
 def _proposal_row_to_model(row: ProposalRow) -> Proposal:
+    ensure_proposal_generation_meta_column()
+    meta = getattr(row, "generation_meta", None) or {}
     return Proposal(
         id=row.id,
         status=row.status,
@@ -48,6 +51,7 @@ def _proposal_row_to_model(row: ProposalRow) -> Proposal:
         edits=[ProposedTopicEdit.model_validate(e) for e in row.edits],
         skipped_dependencies=[SkippedProposedDependency.model_validate(s) for s in row.skipped_dependencies],
         errors=list(row.errors or []),
+        generation_meta=dict(meta) if isinstance(meta, dict) else {},
         created_at=row.created_at,
         applied_at=row.applied_at,
         snapshot_id=row.snapshot_id,
@@ -55,6 +59,7 @@ def _proposal_row_to_model(row: ProposalRow) -> Proposal:
 
 
 def save_proposal(proposal: Proposal) -> None:
+    ensure_proposal_generation_meta_column()
     with SessionLocal() as session, session.begin():
         row = session.get(ProposalRow, proposal.id)
         if row is None:
@@ -70,6 +75,7 @@ def save_proposal(proposal: Proposal) -> None:
         row.edits = [e.model_dump(mode="json") for e in proposal.edits]
         row.skipped_dependencies = [s.model_dump(mode="json") for s in proposal.skipped_dependencies]
         row.errors = list(proposal.errors)
+        row.generation_meta = dict(proposal.generation_meta or {})
         row.created_at = proposal.created_at or datetime.now(timezone.utc)
         row.applied_at = proposal.applied_at
         row.snapshot_id = proposal.snapshot_id
@@ -212,6 +218,7 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
     proposal.applied_at = datetime.now(timezone.utc)
     proposal.snapshot_id = snapshot_id
     save_proposal(proposal)
+    log_proposal_applied(proposal)
 
     logger.info(
         "Applied proposal %s (mode=%s): topics=%s dependencies=%s removed=%s edited=%s merged=%s skipped=%s snapshot=%s",
@@ -245,5 +252,6 @@ def discard_proposal(proposal_id: str) -> Proposal:
         raise ValueError(f"Proposal {proposal_id!r} is already {proposal.status}, not pending")
     proposal.status = "discarded"
     save_proposal(proposal)
+    log_proposal_discarded(proposal)
     logger.info("Discarded proposal %s", proposal_id)
     return proposal
