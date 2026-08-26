@@ -1,0 +1,265 @@
+{
+  "domain": "backend_engineering",
+  "version": "v1",
+  "source": "Human-authored from standard backend engineering curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored from standard backend engineering curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "review_notes": "Covers REST APIs, backend auth, distributed transactions, and caching.",
+  "concepts": [
+    {
+      "id": "be.http",
+      "title": "HTTP",
+      "description": "Application protocol for request/response communication on the web.",
+      "aliases": [
+        "Hypertext Transfer Protocol"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "be.resources",
+      "title": "Resources",
+      "description": "Addressable entities exposed by an API, typically via URLs.",
+      "aliases": [
+        "API Resources",
+        "Resource Model"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "be.http"
+      ]
+    },
+    {
+      "id": "be.rest",
+      "title": "REST",
+      "description": "Architectural style using uniform resource interfaces over HTTP.",
+      "aliases": [
+        "RESTful",
+        "Representational State Transfer"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.resources"
+      ]
+    },
+    {
+      "id": "be.status_codes",
+      "title": "Status Codes",
+      "description": "Numeric HTTP response codes indicating outcome classes.",
+      "aliases": [
+        "HTTP Status Codes",
+        "Response Codes"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "be.http"
+      ]
+    },
+    {
+      "id": "be.api_design",
+      "title": "API Design",
+      "description": "Crafting clear, consistent, evolvable service interfaces.",
+      "aliases": [
+        "REST API Design",
+        "HTTP API Design"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "be.rest",
+        "be.status_codes"
+      ]
+    },
+    {
+      "id": "be.sessions",
+      "title": "Sessions",
+      "description": "Server-side or coordinated client state binding a user across requests.",
+      "aliases": [
+        "Session Management",
+        "HTTP Sessions"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.http"
+      ]
+    },
+    {
+      "id": "be.tokens",
+      "title": "Tokens",
+      "description": "Portable credentials (e.g. JWT/opaque) proving authentication.",
+      "aliases": [
+        "Access Tokens",
+        "Bearer Tokens"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.sessions"
+      ]
+    },
+    {
+      "id": "be.authentication",
+      "title": "Authentication",
+      "description": "Verifying who a client or user is.",
+      "aliases": [
+        "AuthN",
+        "User Authentication"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.tokens"
+      ]
+    },
+    {
+      "id": "be.authorization",
+      "title": "Authorization",
+      "description": "Enforcing what an authenticated principal may do.",
+      "aliases": [
+        "AuthZ",
+        "Permissions"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.authentication"
+      ]
+    },
+    {
+      "id": "be.backend_auth",
+      "title": "Backend Auth",
+      "description": "Authentication and authorization patterns for backend services.",
+      "aliases": [
+        "Service Auth",
+        "Backend Authentication"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "be.authorization"
+      ]
+    },
+    {
+      "id": "be.acid",
+      "title": "ACID",
+      "description": "Atomicity, consistency, isolation, durability properties of transactions.",
+      "aliases": [
+        "ACID Transactions",
+        "Transactional Guarantees"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "be.2pc",
+      "title": "Two-Phase Commit",
+      "description": "Distributed commit protocol with prepare and commit phases.",
+      "aliases": [
+        "2PC",
+        "Two Phase Commit"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "be.acid"
+      ]
+    },
+    {
+      "id": "be.sagas",
+      "title": "Sagas",
+      "description": "Long-running distributed workflows with compensating actions.",
+      "aliases": [
+        "Saga Pattern"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "be.acid"
+      ]
+    },
+    {
+      "id": "be.outbox",
+      "title": "Outbox Pattern",
+      "description": "Reliably publishing events by writing them in the same DB transaction.",
+      "aliases": [
+        "Transactional Outbox",
+        "Outbox"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "be.sagas"
+      ]
+    },
+    {
+      "id": "be.distributed_tx",
+      "title": "Distributed Transactions",
+      "description": "Coordinating updates across multiple services or data stores.",
+      "aliases": [
+        "Distributed Transaction Patterns"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "be.2pc",
+        "be.outbox"
+      ]
+    },
+    {
+      "id": "be.latency",
+      "title": "Latency",
+      "description": "Time delay between a request and its observed response.",
+      "aliases": [
+        "Response Latency",
+        "Request Latency"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "be.cache_invalidation",
+      "title": "Cache Invalidation",
+      "description": "Keeping cached values coherent when the source of truth changes.",
+      "aliases": [
+        "Invalidation",
+        "Cache Coherence Basics"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.latency"
+      ]
+    },
+    {
+      "id": "be.redis",
+      "title": "Redis",
+      "description": "In-memory data store commonly used as a cache and broker.",
+      "aliases": [
+        "Redis Cache"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.cache_invalidation"
+      ]
+    },
+    {
+      "id": "be.cdn",
+      "title": "CDN",
+      "description": "Geographically distributed edge caches for static and dynamic content.",
+      "aliases": [
+        "Content Delivery Network",
+        "Edge CDN"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "be.cache_invalidation"
+      ]
+    },
+    {
+      "id": "be.caching",
+      "title": "Caching Strategies",
+      "description": "Patterns for placing, populating, and invalidating caches.",
+      "aliases": [
+        "Caching",
+        "Cache Strategies"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "be.redis",
+        "be.cdn"
+      ]
+    }
+  ]
+}

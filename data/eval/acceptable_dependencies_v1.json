@@ -1,0 +1,150 @@
+{
+  "version": "acceptable_dependencies_v1",
+  "note": "Manually reviewed evaluation-only edge policy. ACCEPTABLE_ALTERNATIVE edges are educationally valid alternatives that must not inflate required-edge recall. AMBIGUOUS edges stay visible and are never counted as correct. Nothing here is auto-derived from model frequency.",
+  "entries": [
+    {
+      "case_id": "sql_basics_001",
+      "from": "Filtering Data",
+      "to": "SELECT Queries",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "WHERE-clause filtering presupposes SELECT-based retrieval; a common and educationally sound direct dependency.",
+      "why_not_required": "The minimal required path only needs Tables → SELECT → Joins; filtering can be taught as optional skill depth."
+    },
+    {
+      "case_id": "sql_basics_001",
+      "from": "Sorting Results",
+      "to": "SELECT Queries",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "ORDER BY operates on SELECT result sets; sorting as a prerequisite of query-result handling is pedagogically valid.",
+      "why_not_required": "Not every introductory SQL goal requires a separate Sorting Results node in the core required graph."
+    },
+    {
+      "case_id": "calculus_limits_001",
+      "from": "Continuity",
+      "to": "Limits",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "Continuity is standardly defined via limits; Continuity requires Limits is a widely taught direct relationship.",
+      "why_not_required": "The canonical required chain is Functions → Limits → Derivatives; Continuity is optional enrichment."
+    },
+    {
+      "case_id": "calculus_limits_001",
+      "from": "Applications of Derivatives",
+      "to": "Derivatives",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "Applied uses of derivatives require derivative concepts; a natural optional extension edge.",
+      "why_not_required": "Applications are optional relative to the core Limits/Derivatives required path."
+    },
+    {
+      "case_id": "normalization_001",
+      "from": "First Normal Form (1NF)",
+      "to": "Normalization",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "1NF is the first step in the classical normalization ladder; valid when normal forms are modeled as topics.",
+      "why_not_required": "Required core is only Functional Dependencies → Normalization; form ladder is optional detail."
+    },
+    {
+      "case_id": "normalization_001",
+      "from": "Second Normal Form (2NF)",
+      "to": "First Normal Form (1NF)",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "2NF presupposes 1NF in standard database curriculum.",
+      "why_not_required": "Normal-form chain is optional granularity beyond the required Normalization edge."
+    },
+    {
+      "case_id": "normalization_001",
+      "from": "Third Normal Form (3NF)",
+      "to": "Second Normal Form (2NF)",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "3NF presupposes 2NF in the standard normalization progression.",
+      "why_not_required": "Same as other form-ladder edges — optional curriculum detail."
+    },
+    {
+      "case_id": "crypto_applied_001",
+      "from": "Symmetric Crypto",
+      "to": "Introduction to Cryptography",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "Introductory crypto context is a reasonable foundation before specializing into symmetric primitives.",
+      "why_not_required": "Required topics are the crypto primitives themselves; an intro overview node is optional."
+    },
+    {
+      "case_id": "crypto_applied_001",
+      "from": "Public Key Crypto",
+      "to": "Introduction to Cryptography",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "Same optional foundation relationship as for symmetric crypto.",
+      "why_not_required": "Intro overview is not mandatory for the required public-key node."
+    },
+    {
+      "case_id": "crypto_applied_001",
+      "from": "Hashing",
+      "to": "Introduction to Cryptography",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "Hashing is commonly introduced after a short crypto overview; educationally reasonable.",
+      "why_not_required": "Hashing can be taught as a required primitive without a separate intro node."
+    },
+    {
+      "case_id": "containers_k8s_001",
+      "from": "Deployments",
+      "to": "Kubernetes",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "Kubernetes Deployments are a concrete object model that requires Kubernetes concepts.",
+      "why_not_required": "Required core is only Containers → Kubernetes; Deployments is optional depth."
+    },
+    {
+      "case_id": "rlhf_001",
+      "from": "RLHF",
+      "to": "Reinforcement Learning Basics",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "RLHF is a reinforcement-learning method; RL basics are a valid alternative prerequisite alongside language models.",
+      "why_not_required": "Canonical required edge is RLHF → Language Models; RL basics is an alternate valid path, not universally mandatory in this gold."
+    },
+    {
+      "case_id": "queues_001",
+      "from": "Message Queues",
+      "to": "Async Processing",
+      "classification": "ACCEPTABLE_ALTERNATIVE",
+      "approved": true,
+      "reason": "Message queues are a primary mechanism for asynchronous processing; a sound conceptual prerequisite link.",
+      "why_not_required": "Required graph centers on queue semantics (producer-consumer, delivery, backpressure); async as a named node is optional framing."
+    },
+    {
+      "case_id": "python_basics_001",
+      "from": "Control Flow",
+      "to": "Python Syntax",
+      "classification": "AMBIGUOUS",
+      "approved": true,
+      "reason": "Whether 'syntax' is a direct prerequisite of control flow depends on how topics are scoped; could be framing rather than conceptual dependency.",
+      "why_not_required": "Not approved as acceptable — left ambiguous so it neither boosts precision nor is silently dropped."
+    },
+    {
+      "case_id": "transformers_001",
+      "from": "Transformers",
+      "to": "Training Transformer Models",
+      "classification": "AMBIGUOUS",
+      "approved": true,
+      "reason": "Direction is curriculum-order vs conceptual: applications/training often follow architecture, so this edge may be reversed pedagogy rather than a clear prerequisite.",
+      "why_not_required": "Marked ambiguous; not counted as a valid alternative."
+    },
+    {
+      "case_id": "supervised_learning_001",
+      "from": "Tabular Data",
+      "to": "Supervised Learning",
+      "classification": "AMBIGUOUS",
+      "approved": true,
+      "reason": "Tabular data can be a domain setting rather than a prerequisite of supervised learning (or the reverse); gold does not settle this.",
+      "why_not_required": "Ambiguous — not acceptable, not treated as firmly invalid curriculum dogma."
+    }
+  ]
+}

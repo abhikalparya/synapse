@@ -1,0 +1,258 @@
+{
+  "domain": "databases",
+  "version": "v1",
+  "source": "Human-authored from standard databases curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored from standard databases curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "review_notes": "Covers SQL, indexing, distributed databases, and normalization.",
+  "concepts": [
+    {
+      "id": "db.relational_model",
+      "title": "Relational Model",
+      "description": "Data modeled as relations (tables) with tuples and attributes.",
+      "aliases": [
+        "Relational Data Model"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "db.tables",
+      "title": "Tables",
+      "description": "Named relations storing rows with a defined schema.",
+      "aliases": [
+        "Database Tables",
+        "Relations as Tables"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "db.relational_model"
+      ]
+    },
+    {
+      "id": "db.select",
+      "title": "SELECT Queries",
+      "description": "Retrieving and projecting rows from relational tables.",
+      "aliases": [
+        "SQL SELECT",
+        "Select Statements"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "db.tables"
+      ]
+    },
+    {
+      "id": "db.joins",
+      "title": "Joins",
+      "description": "Combining rows from multiple tables based on related columns.",
+      "aliases": [
+        "SQL Joins",
+        "Table Joins"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "db.select"
+      ]
+    },
+    {
+      "id": "db.sql",
+      "title": "SQL",
+      "description": "Standard language for defining and querying relational databases.",
+      "aliases": [
+        "Structured Query Language"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "db.joins"
+      ]
+    },
+    {
+      "id": "db.disk",
+      "title": "Disk Storage",
+      "description": "How database pages and files are laid out on persistent storage.",
+      "aliases": [
+        "Storage Engine Basics",
+        "On-Disk Storage"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "db.btrees",
+      "title": "B-Trees",
+      "description": "Balanced tree index structures efficient for range and equality lookups.",
+      "aliases": [
+        "B-Tree",
+        "B+ Trees"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "db.disk"
+      ]
+    },
+    {
+      "id": "db.indexes",
+      "title": "Indexes",
+      "description": "Auxiliary structures that accelerate lookups and sorting.",
+      "aliases": [
+        "Database Indexes",
+        "DB Indexes"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "db.btrees"
+      ]
+    },
+    {
+      "id": "db.query_planning",
+      "title": "Query Planning",
+      "description": "Choosing an efficient execution plan for a declarative query.",
+      "aliases": [
+        "Query Optimizer",
+        "Execution Plans"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "db.indexes"
+      ]
+    },
+    {
+      "id": "db.indexing",
+      "title": "Database Indexing",
+      "description": "Designing and using indexes to improve query performance.",
+      "aliases": [
+        "Indexing Strategies"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "db.query_planning"
+      ]
+    },
+    {
+      "id": "db.replication",
+      "title": "Replication",
+      "description": "Copying data across nodes for availability and locality.",
+      "aliases": [
+        "DB Replication",
+        "Data Replication"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "db.partitioning",
+      "title": "Partitioning",
+      "description": "Splitting data across shards or partitions by a key.",
+      "aliases": [
+        "Sharding",
+        "Data Partitioning"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "db.consensus",
+      "title": "Consensus",
+      "description": "Agreeing on a single value or log among distributed nodes.",
+      "aliases": [
+        "Distributed Consensus"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "db.replication"
+      ]
+    },
+    {
+      "id": "db.consistency_models",
+      "title": "Consistency Models",
+      "description": "Guarantees about visibility and ordering of reads and writes.",
+      "aliases": [
+        "Consistency Guarantees"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "db.replication"
+      ]
+    },
+    {
+      "id": "db.distributed_db",
+      "title": "Distributed Databases",
+      "description": "Databases spanning multiple nodes with replication and partitioning.",
+      "aliases": [
+        "Distributed Database Design"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "db.partitioning",
+        "db.consensus",
+        "db.consistency_models"
+      ]
+    },
+    {
+      "id": "db.relations",
+      "title": "Relations",
+      "description": "Mathematical/table relations used as the unit of schema design.",
+      "aliases": [
+        "Database Relations"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "db.relational_model"
+      ]
+    },
+    {
+      "id": "db.fd",
+      "title": "Functional Dependencies",
+      "description": "Constraints where attribute sets determine other attributes.",
+      "aliases": [
+        "FDs",
+        "Functional Dependency"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "db.relations"
+      ]
+    },
+    {
+      "id": "db.normal_forms",
+      "title": "Normal Forms",
+      "description": "Schema forms (1NF\u2013BCNF etc.) that reduce redundancy.",
+      "aliases": [
+        "NF",
+        "Database Normal Forms"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "db.fd"
+      ]
+    },
+    {
+      "id": "db.normalization",
+      "title": "Normalization",
+      "description": "Process of decomposing schemas according to normal forms.",
+      "aliases": [
+        "Schema Normalization"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "db.normal_forms"
+      ]
+    },
+    {
+      "id": "db.schema_design",
+      "title": "Schema Design",
+      "description": "Choosing tables, keys, and constraints for an application domain.",
+      "aliases": [
+        "Relational Schema Design",
+        "Database Schema Design"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "db.normalization"
+      ]
+    }
+  ]
+}

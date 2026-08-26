@@ -1,0 +1,81 @@
+{
+  "domain": "stream_processing",
+  "version": "v1",
+  "reviewed_at": "2026-08-25",
+  "provenance": "Human-authored from standard stream-processing / event-log curriculum (logs, Kafka-style brokers, windowing, exactly-once). Not derived from Synapse gold JSONL.",
+  "review_notes": "Focused inventory for stream processing architectures; includes Kafka as a named technology commonly taught in this curriculum.",
+  "concepts": [
+    {
+      "id": "stream.event_logs",
+      "title": "Event Logs",
+      "description": "Append-only ordered records of events used as a system of record.",
+      "aliases": ["Event Log", "Commit Log", "Append-Only Log"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "stream.kafka",
+      "title": "Kafka",
+      "description": "Distributed event streaming platform organized around topics, partitions, and consumer groups.",
+      "aliases": ["Apache Kafka", "Kafka Broker", "Kafka Topics"],
+      "level": "intermediate",
+      "prerequisite_ids": ["stream.event_logs"]
+    },
+    {
+      "id": "stream.topics_partitions",
+      "title": "Topics and Partitions",
+      "description": "Logical streams split into ordered partitions for scale and parallelism.",
+      "aliases": ["Kafka Partitions", "Topic Partitions"],
+      "level": "intermediate",
+      "prerequisite_ids": ["stream.kafka"]
+    },
+    {
+      "id": "stream.consumer_groups",
+      "title": "Consumer Groups",
+      "description": "Coordinated sets of consumers that share partition assignment for a topic.",
+      "aliases": ["Kafka Consumer Groups"],
+      "level": "intermediate",
+      "prerequisite_ids": ["stream.topics_partitions"]
+    },
+    {
+      "id": "stream.windowing",
+      "title": "Windowing",
+      "description": "Grouping unbounded streams into finite time or count windows for aggregation.",
+      "aliases": ["Stream Windows", "Time Windows"],
+      "level": "intermediate",
+      "prerequisite_ids": ["stream.kafka"]
+    },
+    {
+      "id": "stream.watermarks",
+      "title": "Watermarks",
+      "description": "Progress markers estimating event-time completeness in out-of-order streams.",
+      "aliases": ["Event-Time Watermarks"],
+      "level": "advanced",
+      "prerequisite_ids": ["stream.windowing"]
+    },
+    {
+      "id": "stream.exactly_once",
+      "title": "Exactly-Once",
+      "description": "Processing semantics that avoid lost or duplicated effects under retries.",
+      "aliases": ["Exactly Once Semantics", "EOS", "Exactly-Once Processing"],
+      "level": "advanced",
+      "prerequisite_ids": ["stream.kafka"]
+    },
+    {
+      "id": "stream.stream_processing",
+      "title": "Stream Processing",
+      "description": "Continuous computation over unbounded event streams.",
+      "aliases": ["Streaming Analytics", "Event Stream Processing"],
+      "level": "advanced",
+      "prerequisite_ids": ["stream.windowing", "stream.exactly_once"]
+    },
+    {
+      "id": "stream.stateful_processing",
+      "title": "Stateful Stream Processing",
+      "description": "Maintaining keyed state while processing streams, including recovery concerns.",
+      "aliases": ["Stateful Streaming"],
+      "level": "advanced",
+      "prerequisite_ids": ["stream.stream_processing"]
+    }
+  ]
+}

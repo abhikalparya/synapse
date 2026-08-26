@@ -1,0 +1,278 @@
+{
+  "domain": "security",
+  "version": "v1",
+  "source": "Human-authored from standard security curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored from standard security curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "review_notes": "Covers security fundamentals, web vulnerabilities, applied crypto, and secure SDLC.",
+  "concepts": [
+    {
+      "id": "sec.threats",
+      "title": "Threats",
+      "description": "Potential adversaries, attacks, and harm scenarios against systems.",
+      "aliases": [
+        "Security Threats",
+        "Threat Landscape"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "sec.authentication",
+      "title": "Authentication",
+      "description": "Verifying identity as a security control.",
+      "aliases": [
+        "AuthN",
+        "Identity Authentication"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "sec.least_privilege",
+      "title": "Least Privilege",
+      "description": "Granting only the minimum permissions needed for a task.",
+      "aliases": [
+        "Principle of Least Privilege",
+        "PoLP"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "sec.authentication"
+      ]
+    },
+    {
+      "id": "sec.encryption_basics",
+      "title": "Encryption Basics",
+      "description": "Using cryptography to protect confidentiality of data.",
+      "aliases": [
+        "Basic Encryption",
+        "Crypto Basics"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "sec.fundamentals",
+      "title": "Security Fundamentals",
+      "description": "Core controls spanning threats, auth, privilege, and encryption.",
+      "aliases": [
+        "InfoSec Fundamentals",
+        "Software Security Basics"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "sec.threats",
+        "sec.least_privilege",
+        "sec.encryption_basics"
+      ]
+    },
+    {
+      "id": "sec.http",
+      "title": "HTTP",
+      "description": "Web transport context in which many application attacks occur.",
+      "aliases": [
+        "HTTP Protocol"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "sec.sessions",
+      "title": "Sessions",
+      "description": "Stateful bindings between client and server that attackers may hijack.",
+      "aliases": [
+        "Web Sessions",
+        "Session Cookies"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.http"
+      ]
+    },
+    {
+      "id": "sec.xss",
+      "title": "XSS",
+      "description": "Injecting attacker-controlled scripts into victims' browsers.",
+      "aliases": [
+        "Cross-Site Scripting",
+        "XSS Attacks"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.sessions"
+      ]
+    },
+    {
+      "id": "sec.csrf",
+      "title": "CSRF",
+      "description": "Forcing a victim browser to send authenticated unintended requests.",
+      "aliases": [
+        "Cross-Site Request Forgery",
+        "CSRF Attacks"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.sessions"
+      ]
+    },
+    {
+      "id": "sec.sqli",
+      "title": "SQL Injection",
+      "description": "Injecting attacker SQL through unsanitized application inputs.",
+      "aliases": [
+        "SQLi",
+        "SQL Injection Attacks"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.http"
+      ]
+    },
+    {
+      "id": "sec.web_security",
+      "title": "Web Security",
+      "description": "Defending web apps against common injection and session attacks.",
+      "aliases": [
+        "Application Web Security",
+        "OWASP Web Security"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "sec.xss",
+        "sec.csrf",
+        "sec.sqli"
+      ]
+    },
+    {
+      "id": "sec.symmetric",
+      "title": "Symmetric Crypto",
+      "description": "Encryption where the same key encrypts and decrypts.",
+      "aliases": [
+        "Symmetric Encryption",
+        "Shared-Key Crypto"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "sec.encryption_basics"
+      ]
+    },
+    {
+      "id": "sec.pubkey",
+      "title": "Public Key Crypto",
+      "description": "Asymmetric cryptography with public/private key pairs.",
+      "aliases": [
+        "Asymmetric Crypto",
+        "Public-Key Cryptography"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.encryption_basics"
+      ]
+    },
+    {
+      "id": "sec.hashing",
+      "title": "Hashing",
+      "description": "One-way functions for integrity checks and password storage.",
+      "aliases": [
+        "Cryptographic Hashing",
+        "Hash Functions"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "sec.encryption_basics"
+      ]
+    },
+    {
+      "id": "sec.tls",
+      "title": "TLS",
+      "description": "Transport Layer Security for encrypted authenticated channels.",
+      "aliases": [
+        "SSL/TLS",
+        "Transport Layer Security"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.symmetric",
+        "sec.pubkey"
+      ]
+    },
+    {
+      "id": "sec.applied_crypto",
+      "title": "Applied Cryptography",
+      "description": "Practical use of crypto primitives in real systems and protocols.",
+      "aliases": [
+        "Crypto Engineering",
+        "Practical Cryptography"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "sec.tls",
+        "sec.hashing"
+      ]
+    },
+    {
+      "id": "sec.threat_modeling",
+      "title": "Threat Modeling",
+      "description": "Structured analysis of assets, threats, and mitigations.",
+      "aliases": [
+        "Threat Models"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.threats"
+      ]
+    },
+    {
+      "id": "sec.code_review",
+      "title": "Code Review",
+      "description": "Human review of changes to catch defects and security issues.",
+      "aliases": [
+        "Secure Code Review"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "sec.sast",
+      "title": "SAST",
+      "description": "Static application security testing of source without executing it.",
+      "aliases": [
+        "Static Analysis Security Testing",
+        "Static Application Security Testing"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "sec.code_review"
+      ]
+    },
+    {
+      "id": "sec.dep_scanning",
+      "title": "Dependency Scanning",
+      "description": "Finding known vulnerabilities in third-party packages.",
+      "aliases": [
+        "SCA",
+        "Software Composition Analysis"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "sec.secure_sdlc",
+      "title": "Secure SDLC",
+      "description": "Integrating security activities across the software lifecycle.",
+      "aliases": [
+        "AppSec SDLC",
+        "Application Security SDLC"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "sec.threat_modeling",
+        "sec.sast",
+        "sec.dep_scanning"
+      ]
+    }
+  ]
+}

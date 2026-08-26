@@ -1,0 +1,264 @@
+{
+  "domain": "machine_learning",
+  "version": "v1",
+  "source": "Human-authored from standard machine learning curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored from standard machine learning curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "review_notes": "Covers supervised learning, transformers/LLMs, RLHF, and CNN vision.",
+  "concepts": [
+    {
+      "id": "ml.data_splits",
+      "title": "Data Splits",
+      "description": "Partitioning data into train/validation/test sets.",
+      "aliases": [
+        "Train Test Split",
+        "Dataset Splits"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "ml.linear_regression",
+      "title": "Linear Regression",
+      "description": "Predicting continuous targets as a linear function of features.",
+      "aliases": [
+        "Least Squares Regression"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "ml.data_splits"
+      ]
+    },
+    {
+      "id": "ml.loss",
+      "title": "Loss Functions",
+      "description": "Objectives measuring prediction error for training.",
+      "aliases": [
+        "Loss",
+        "Training Loss"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "ml.linear_regression"
+      ]
+    },
+    {
+      "id": "ml.overfitting",
+      "title": "Overfitting",
+      "description": "Fitting training noise so poorly that generalization suffers.",
+      "aliases": [
+        "Overfit",
+        "High Variance"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "ml.loss"
+      ]
+    },
+    {
+      "id": "ml.supervised",
+      "title": "Supervised Learning",
+      "description": "Learning a mapping from inputs to labeled targets.",
+      "aliases": [
+        "Supervised ML",
+        "Labeled Learning"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "ml.overfitting"
+      ]
+    },
+    {
+      "id": "ml.linear_algebra",
+      "title": "Linear Algebra",
+      "description": "Vectors, matrices, and linear maps used throughout ML.",
+      "aliases": [
+        "LA for ML",
+        "Matrix Algebra"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "ml.probability",
+      "title": "Probability",
+      "description": "Uncertainty modeling underlying learning and prediction.",
+      "aliases": [
+        "Probabilistic Foundations",
+        "Probability Basics"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "ml.neural_nets",
+      "title": "Neural Networks",
+      "description": "Composable parameterized function approximators trained by gradients.",
+      "aliases": [
+        "Deep Neural Networks",
+        "NNs"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "ml.linear_algebra",
+        "ml.probability"
+      ]
+    },
+    {
+      "id": "ml.attention",
+      "title": "Attention Mechanisms",
+      "description": "Weighting context elements dynamically for sequence models.",
+      "aliases": [
+        "Attention",
+        "Self-Attention"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "ml.neural_nets"
+      ]
+    },
+    {
+      "id": "ml.transformers",
+      "title": "Transformers",
+      "description": "Sequence models built from stacked attention and feed-forward blocks.",
+      "aliases": [
+        "Transformer Architecture"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "ml.attention"
+      ]
+    },
+    {
+      "id": "ml.llms",
+      "title": "Large Language Models",
+      "description": "Large transformer language models trained on broad text corpora.",
+      "aliases": [
+        "LLM",
+        "Foundation Language Models"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "ml.transformers"
+      ]
+    },
+    {
+      "id": "ml.language_models",
+      "title": "Language Models",
+      "description": "Models that assign probabilities to token sequences.",
+      "aliases": [
+        "LM",
+        "Autoregressive Language Models"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "ml.probability"
+      ]
+    },
+    {
+      "id": "ml.sft",
+      "title": "Supervised Fine-Tuning",
+      "description": "Adapting a pretrained model with labeled instruction data.",
+      "aliases": [
+        "SFT",
+        "Instruction Fine-Tuning"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "ml.language_models"
+      ]
+    },
+    {
+      "id": "ml.reward_models",
+      "title": "Reward Models",
+      "description": "Models that score outputs for preference or quality.",
+      "aliases": [
+        "RM",
+        "Preference Reward Model"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "ml.sft"
+      ]
+    },
+    {
+      "id": "ml.policy_opt",
+      "title": "Policy Optimization",
+      "description": "Updating a policy to improve reward (e.g. RL algorithms).",
+      "aliases": [
+        "Policy Gradient Basics",
+        "RL Policy Optimization"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "ml.reward_models"
+      ]
+    },
+    {
+      "id": "ml.rlhf",
+      "title": "RLHF",
+      "description": "Reinforcement learning from human feedback for aligning LMs.",
+      "aliases": [
+        "Reinforcement Learning from Human Feedback"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "ml.policy_opt"
+      ]
+    },
+    {
+      "id": "ml.convolutions",
+      "title": "Convolutions",
+      "description": "Local sliding-window filters extracting spatial features.",
+      "aliases": [
+        "Convolution Operation",
+        "Conv Filters"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "ml.linear_algebra"
+      ]
+    },
+    {
+      "id": "ml.cnns",
+      "title": "CNNs",
+      "description": "Neural nets using convolutions for grid-structured data.",
+      "aliases": [
+        "Convolutional Neural Networks",
+        "ConvNets"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "ml.convolutions"
+      ]
+    },
+    {
+      "id": "ml.pooling",
+      "title": "Pooling",
+      "description": "Downsampling feature maps while retaining salient signals.",
+      "aliases": [
+        "Max Pooling",
+        "Spatial Pooling"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "ml.cnns"
+      ]
+    },
+    {
+      "id": "ml.image_clf",
+      "title": "Image Classification",
+      "description": "Assigning discrete labels to images.",
+      "aliases": [
+        "Visual Classification",
+        "Image Labeling"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "ml.pooling"
+      ]
+    }
+  ]
+}

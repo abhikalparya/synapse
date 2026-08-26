@@ -1,0 +1,267 @@
+{
+  "domain": "frontend_engineering",
+  "version": "v1",
+  "source": "Human-authored from standard frontend engineering curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored from standard frontend engineering curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "review_notes": "Covers HTML/CSS, React state, web performance, and accessibility fundamentals.",
+  "concepts": [
+    {
+      "id": "fe.html",
+      "title": "HTML",
+      "description": "Markup language for structuring document content in the browser.",
+      "aliases": [
+        "HyperText Markup Language",
+        "HTML Markup"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "fe.css_selectors",
+      "title": "CSS Selectors",
+      "description": "Patterns that target HTML elements for styling.",
+      "aliases": [
+        "Selectors",
+        "CSS Selector"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "fe.html"
+      ]
+    },
+    {
+      "id": "fe.layout",
+      "title": "Layout",
+      "description": "Arranging elements with box model, flex, grid, and positioning.",
+      "aliases": [
+        "CSS Layout",
+        "Page Layout"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.css_selectors"
+      ]
+    },
+    {
+      "id": "fe.responsive",
+      "title": "Responsive Design",
+      "description": "Layouts and assets that adapt across viewport sizes.",
+      "aliases": [
+        "Responsive Web Design",
+        "RWD"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.layout"
+      ]
+    },
+    {
+      "id": "fe.web_pages",
+      "title": "Web Pages",
+      "description": "Complete documents combining structure, style, and assets for users.",
+      "aliases": [
+        "Static Web Pages",
+        "Web Documents"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "fe.responsive"
+      ]
+    },
+    {
+      "id": "fe.javascript",
+      "title": "JavaScript",
+      "description": "Programming language of the web for interactive behavior.",
+      "aliases": [
+        "JS",
+        "ECMAScript"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "fe.dom",
+      "title": "DOM",
+      "description": "Tree representation of an HTML document exposed to scripts.",
+      "aliases": [
+        "Document Object Model"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "fe.html",
+        "fe.javascript"
+      ]
+    },
+    {
+      "id": "fe.components",
+      "title": "Components",
+      "description": "Reusable UI building blocks with encapsulated structure and behavior.",
+      "aliases": [
+        "UI Components",
+        "Component Model"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.dom"
+      ]
+    },
+    {
+      "id": "fe.state",
+      "title": "State",
+      "description": "Data that drives UI rendering and changes over time.",
+      "aliases": [
+        "Component State",
+        "UI State"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.components"
+      ]
+    },
+    {
+      "id": "fe.react",
+      "title": "React",
+      "description": "Library for building component UIs with declarative rendering.",
+      "aliases": [
+        "React.js",
+        "React Library"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.state"
+      ]
+    },
+    {
+      "id": "fe.crp",
+      "title": "Critical Rendering Path",
+      "description": "Sequence of steps the browser takes to paint pixels from HTML/CSS/JS.",
+      "aliases": [
+        "CRP",
+        "Rendering Path"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.dom"
+      ]
+    },
+    {
+      "id": "fe.bundling",
+      "title": "Bundling",
+      "description": "Packaging modules and assets for efficient delivery to the browser.",
+      "aliases": [
+        "JS Bundling",
+        "Module Bundling"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.javascript"
+      ]
+    },
+    {
+      "id": "fe.caching",
+      "title": "Caching",
+      "description": "Reusing previously fetched assets or computed results to reduce latency.",
+      "aliases": [
+        "HTTP Caching",
+        "Browser Cache"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "fe.cwv",
+      "title": "Core Web Vitals",
+      "description": "User-centric performance metrics for loading, interactivity, and visual stability.",
+      "aliases": [
+        "CWV",
+        "Web Vitals"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "fe.crp"
+      ]
+    },
+    {
+      "id": "fe.web_perf",
+      "title": "Web Performance",
+      "description": "Practices that improve load time, responsiveness, and runtime efficiency.",
+      "aliases": [
+        "Frontend Performance",
+        "Perf Optimization"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "fe.cwv",
+        "fe.bundling",
+        "fe.caching"
+      ]
+    },
+    {
+      "id": "fe.semantic_html",
+      "title": "Semantic HTML",
+      "description": "Using meaningful HTML elements to convey document structure.",
+      "aliases": [
+        "Semantic Markup"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "fe.html"
+      ]
+    },
+    {
+      "id": "fe.keyboard",
+      "title": "Keyboard Navigation",
+      "description": "Ensuring all interactive controls are operable via keyboard alone.",
+      "aliases": [
+        "Keyboard Access",
+        "Focus Management"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.semantic_html"
+      ]
+    },
+    {
+      "id": "fe.aria",
+      "title": "ARIA",
+      "description": "Attributes that expose accessible names, roles, and states to assistive tech.",
+      "aliases": [
+        "WAI-ARIA",
+        "Accessible Rich Internet Applications"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.keyboard"
+      ]
+    },
+    {
+      "id": "fe.screen_readers",
+      "title": "Screen Readers",
+      "description": "Assistive technology that presents UI content as speech or braille.",
+      "aliases": [
+        "Assistive Technology",
+        "Screen Reader"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "fe.aria"
+      ]
+    },
+    {
+      "id": "fe.a11y",
+      "title": "Accessibility",
+      "description": "Designing interfaces usable by people with diverse abilities.",
+      "aliases": [
+        "a11y",
+        "Web Accessibility"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "fe.screen_readers"
+      ]
+    }
+  ]
+}

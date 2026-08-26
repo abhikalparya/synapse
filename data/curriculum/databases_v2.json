@@ -1,0 +1,236 @@
+{
+  "domain": "databases",
+  "version": "v2",
+  "parent_version": "v1",
+  "source": "Human-authored databases curriculum; v2 revises prerequisite structure and concept abstraction. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored databases curriculum; v2 revises prerequisite structure and concept abstraction. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "review_notes": "v2 focuses on direct prerequisite semantics: fix inverted SQL chain, merge near-duplicate Relations, remove redundant Database Indexing overview, add Replication as a direct Distributed Databases prerequisite, and rewrite descriptions so selected concepts state what they presuppose.",
+  "change_log": [
+    {
+      "change_type": "REVERSE_PREREQUISITE",
+      "old": "db.sql requires db.joins (SQL overview above joins)",
+      "new": "db.sql is foundational; db.select requires db.sql; db.joins requires db.select",
+      "reason": "SQL is the language substrate for SELECT/joins, not a topic that presupposes joins",
+      "rationale": "Treating SQL as leaf/overview after Joins inverted direct-prerequisite semantics and encouraged bidirectional SQL↔SELECT confusion."
+    },
+    {
+      "change_type": "MERGE_CONCEPT",
+      "old": "db.relations (Relations) parallel to db.tables",
+      "new": "removed; relational-table meaning covered by Relational Model + Tables (aliases retain 'Relations')",
+      "reason": "Near-duplicate abstraction caused Tables↔Relations extras and unclear direction",
+      "rationale": "At learning-unit scale, 'Relations' and 'Tables' were not distinct enough to justify separate nodes."
+    },
+    {
+      "change_type": "REMOVE_CONCEPT",
+      "old": "db.indexing (Database Indexing overview)",
+      "new": "removed; responsibilities folded into Indexes + Query Planning",
+      "reason": "Overview node forced a long chain Indexes→Query Planning→Database Indexing with weak directness",
+      "rationale": "Database Indexing duplicated Indexes at a vaguer level and sat above Query Planning without adding a distinct learning unit."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "db.select → db.tables only",
+      "new": "db.select → db.tables, db.sql",
+      "reason": "SELECT syntax is meaningless without the SQL language and table targets",
+      "rationale": "Direct prerequisites for writing SELECT are table structure and SQL as the query language."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "db.query_planning → db.indexes only",
+      "new": "db.query_planning → db.indexes, db.select",
+      "reason": "Planning presupposes declarative queries as well as access paths",
+      "rationale": "A query planner chooses plans for statements; Indexes alone omit the query side."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "db.distributed_db → partitioning, consensus, consistency_models (no replication)",
+      "new": "db.distributed_db → db.replication, db.partitioning, db.consistency_models",
+      "reason": "Replication is a direct building block of distributed databases; consensus is a mechanism, not always a direct overview prerequisite",
+      "rationale": "Understanding distributed databases directly requires replication and partitioning plus consistency trade-offs; consensus algorithms are advanced mechanisms under replication."
+    },
+    {
+      "change_type": "REMOVE_PREREQUISITE",
+      "old": "db.distributed_db → db.consensus",
+      "new": "removed as hard prerequisite of the overview",
+      "reason": "Consensus is not always a direct prerequisite of the distributed-database overview",
+      "rationale": "Learners can grasp distributed DB design via replication/partitioning/consistency without first mastering consensus protocols; Consensus remains a selectable concept requiring Replication."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "db.partitioning had no prerequisites",
+      "new": "db.partitioning → db.tables",
+      "reason": "Partition keys and shards presuppose tabular/relational data units",
+      "rationale": "Partitioning is applied to stored relations/tables; Tables is a direct prerequisite."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "db.replication had no prerequisites",
+      "new": "db.replication → db.tables",
+      "reason": "Replication copies stored data units; tables are the primary unit in this curriculum",
+      "rationale": "Direct prerequisite: you replicate table/relation contents, so Tables comes first."
+    },
+    {
+      "change_type": "ADJUST_DIRECTNESS",
+      "old": "db.fd → db.relations; db.schema_design → db.normalization only",
+      "new": "db.fd → db.tables; db.schema_design → db.normalization, db.tables",
+      "reason": "After merging Relations, FDs attach to Tables; schema design also directly needs tables",
+      "rationale": "Functional dependencies and schema design are about attributes of tables, not a separate Relations node."
+    },
+    {
+      "change_type": "REWRITE_DESCRIPTION",
+      "old": "brief definitions without stated presuppositions",
+      "new": "descriptions name direct prerequisites in plain language",
+      "reason": "Dependency generation only sees titles/descriptions, not inventory edges",
+      "rationale": "Clearer prerequisite wording improves direct-edge generation without changing the dependency architecture."
+    }
+  ],
+  "concepts": [
+    {
+      "id": "db.relational_model",
+      "title": "Relational Model",
+      "description": "Foundational data model: relations with tuples and attributes. No database-specific prerequisites; later concepts build on this model.",
+      "aliases": ["Relational Data Model"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "db.tables",
+      "title": "Tables",
+      "description": "Named relations (tables) storing rows under a schema. Directly requires the Relational Model before treating tables as the unit of storage and design. Synonymous with relations-as-tables in this curriculum.",
+      "aliases": ["Database Tables", "Relations", "Relations as Tables"],
+      "level": "foundational",
+      "prerequisite_ids": ["db.relational_model"]
+    },
+    {
+      "id": "db.sql",
+      "title": "SQL",
+      "description": "Declarative language for defining and querying relational data. Foundational language skill; SELECT and joins are expressed in SQL and therefore require it.",
+      "aliases": ["Structured Query Language"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "db.select",
+      "title": "SELECT Queries",
+      "description": "Retrieving and projecting rows with SQL SELECT. Directly requires Tables (what is queried) and SQL (the language of the statement).",
+      "aliases": ["SQL SELECT", "Select Statements"],
+      "level": "foundational",
+      "prerequisite_ids": ["db.tables", "db.sql"]
+    },
+    {
+      "id": "db.joins",
+      "title": "Joins",
+      "description": "Combining rows from multiple tables on related columns. Directly requires SELECT Queries; joins extend single-table retrieval rather than replacing SQL itself.",
+      "aliases": ["SQL Joins", "Table Joins"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.select"]
+    },
+    {
+      "id": "db.disk",
+      "title": "Disk Storage",
+      "description": "How database pages and files are laid out on persistent storage. Foundational for index structures that sit on disk-oriented organization.",
+      "aliases": ["Storage Engine Basics", "On-Disk Storage"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "db.btrees",
+      "title": "B-Trees",
+      "description": "Balanced tree structures used for efficient equality and range lookups on disk-backed data. Directly requires Disk Storage.",
+      "aliases": ["B-Tree", "B+ Trees"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.disk"]
+    },
+    {
+      "id": "db.indexes",
+      "title": "Indexes",
+      "description": "Auxiliary access paths that accelerate lookups and sorting. Directly requires B-Trees as the common physical structure for relational indexes.",
+      "aliases": ["Database Indexes", "DB Indexes", "Indexing Strategies", "Database Indexing"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.btrees"]
+    },
+    {
+      "id": "db.query_planning",
+      "title": "Query Planning",
+      "description": "Choosing an efficient execution plan for a declarative query. Directly requires SELECT Queries (the statements being planned) and Indexes (primary alternative access paths).",
+      "aliases": ["Query Optimizer", "Execution Plans"],
+      "level": "advanced",
+      "prerequisite_ids": ["db.indexes", "db.select"]
+    },
+    {
+      "id": "db.replication",
+      "title": "Replication",
+      "description": "Copying table data across nodes for availability and locality. Directly requires Tables as the unit of replicated content.",
+      "aliases": ["DB Replication", "Data Replication"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.tables"]
+    },
+    {
+      "id": "db.partitioning",
+      "title": "Partitioning",
+      "description": "Splitting table data across shards or partitions by a key. Directly requires Tables; partitioning is applied to relational data units.",
+      "aliases": ["Sharding", "Data Partitioning"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.tables"]
+    },
+    {
+      "id": "db.consensus",
+      "title": "Consensus",
+      "description": "Agreeing on a single value or log among distributed nodes. Directly requires Replication; consensus is a coordination mechanism for replicated state.",
+      "aliases": ["Distributed Consensus"],
+      "level": "advanced",
+      "prerequisite_ids": ["db.replication"]
+    },
+    {
+      "id": "db.consistency_models",
+      "title": "Consistency Models",
+      "description": "Guarantees about visibility and ordering of reads and writes across replicas. Directly requires Replication; models describe behavior of replicated data.",
+      "aliases": ["Consistency Guarantees"],
+      "level": "advanced",
+      "prerequisite_ids": ["db.replication"]
+    },
+    {
+      "id": "db.distributed_db",
+      "title": "Distributed Databases",
+      "description": "Databases spanning multiple nodes. Directly requires Replication, Partitioning, and Consistency Models as the core design axes; consensus protocols are related mechanisms under replication, not always a separate overview prerequisite.",
+      "aliases": ["Distributed Database Design"],
+      "level": "overview",
+      "prerequisite_ids": ["db.replication", "db.partitioning", "db.consistency_models"]
+    },
+    {
+      "id": "db.fd",
+      "title": "Functional Dependencies",
+      "description": "Constraints where attribute sets determine other attributes within a table. Directly requires Tables.",
+      "aliases": ["FDs", "Functional Dependency"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.tables"]
+    },
+    {
+      "id": "db.normal_forms",
+      "title": "Normal Forms",
+      "description": "Schema forms (1NF–BCNF etc.) defined via functional dependencies. Directly requires Functional Dependencies.",
+      "aliases": ["NF", "Database Normal Forms"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.fd"]
+    },
+    {
+      "id": "db.normalization",
+      "title": "Normalization",
+      "description": "Decomposing schemas according to normal forms to reduce redundancy. Directly requires Normal Forms.",
+      "aliases": ["Schema Normalization"],
+      "level": "intermediate",
+      "prerequisite_ids": ["db.normal_forms"]
+    },
+    {
+      "id": "db.schema_design",
+      "title": "Schema Design",
+      "description": "Choosing tables, keys, and constraints for an application. Directly requires Normalization (design method) and Tables (the artifacts being designed).",
+      "aliases": ["Relational Schema Design", "Database Schema Design"],
+      "level": "overview",
+      "prerequisite_ids": ["db.normalization", "db.tables"]
+    }
+  ]
+}

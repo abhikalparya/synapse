@@ -1,0 +1,27 @@
+{
+  "version": "node_representation_v1",
+  "note": "Optional explicit reviewed node-representation mappings for attribution only. Empty/unapproved rows are ignored. Does not affect Topic F1 or Dependency F1.",
+  "granularity": [
+    {
+      "canonical": "Variables and Data Types",
+      "variant": "Variables",
+      "approved": true,
+      "reason": "Variables is a narrower slice of the combined Variables and Data Types concept."
+    },
+    {
+      "canonical": "Variables and Data Types",
+      "variant": "Data Types",
+      "approved": true,
+      "reason": "Data Types is a narrower slice of the combined concept."
+    }
+  ],
+  "decomposition": [],
+  "abstraction": [
+    {
+      "specific": "Variables and Data Types",
+      "umbrella": "Programming Fundamentals",
+      "approved": true,
+      "reason": "Programming Fundamentals is a broader umbrella than Variables and Data Types."
+    }
+  ]
+}

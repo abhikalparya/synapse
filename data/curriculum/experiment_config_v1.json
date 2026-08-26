@@ -1,0 +1,33 @@
+{
+  "version": "experiment_config_v1",
+  "strategy": "domain_curriculum_prior",
+  "description": "Opt-in experimental domain-prior config. Production ingest default remains baseline. databases/data_engineering use v2; all other listed inventories are frozen v1.",
+  "max_selected_concepts": 8,
+  "max_required_concepts": 8,
+  "fallback": {
+    "on_unresolved_domain": "baseline",
+    "on_missing_inventory": "baseline",
+    "description": "Product ingest falls back to baseline unless require_domain_prior is set."
+  },
+  "inventory_coverage_gate": {
+    "min_gold_topic_coverage": 0.75,
+    "min_gold_endpoint_coverage": 0.75
+  },
+  "inventory_files": {
+    "compiler_construction": "compiler_construction_v1.json",
+    "distributed_systems": "distributed_systems_v1.json",
+    "stream_processing": "stream_processing_v1.json",
+    "cloud_computing": "cloud_computing_v1.json",
+    "frontend_engineering": "frontend_engineering_v1.json",
+    "backend_engineering": "backend_engineering_v1.json",
+    "databases": "databases_v2.json",
+    "data_engineering": "data_engineering_v2.json",
+    "security": "security_v1.json",
+    "machine_learning": "machine_learning_v1.json"
+  },
+  "edge_classifier": {
+    "pairs_per_batch": 64,
+    "max_candidate_pairs": null,
+    "status": "experimental_only"
+  }
+}

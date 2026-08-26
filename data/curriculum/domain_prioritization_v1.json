@@ -1,0 +1,246 @@
+{
+  "version": "domain_prioritization_v1",
+  "created_at": "2026-08-25",
+  "purpose": "Planning metadata only. Not loaded at runtime for generation. Not gold.",
+  "source_artifacts": [
+    "data/eval/learning_graph_quality_v1.jsonl",
+    "results/failure_analysis/2026-08-25_055223_persistent_failure_cluster_analysis.json"
+  ],
+  "ranking_criteria": [
+    "Number of evaluation cases (unmapped weighted for expansion)",
+    "Stable missing-topic count",
+    "Stable missing-edge count",
+    "Persistent missing endpoint concepts",
+    "Product relevance boost"
+  ],
+  "frozen_expansion_batch": [
+    "cloud_computing",
+    "frontend_engineering",
+    "backend_engineering",
+    "databases",
+    "data_engineering",
+    "security",
+    "machine_learning"
+  ],
+  "frozen_before_inventory_authoring": true,
+  "already_supported": [
+    "compiler_construction",
+    "distributed_systems",
+    "stream_processing"
+  ],
+  "domains": [
+    {
+      "domain": "cloud_computing",
+      "case_count": 4,
+      "unmapped_case_count": 4,
+      "mapped_case_count": 0,
+      "stable_missing_topic_count": 9,
+      "stable_missing_edge_count": 14,
+      "top_missing_concepts": [
+        "IaaS",
+        "PaaS",
+        "SaaS",
+        "Error Budgets",
+        "SLIs and SLOs",
+        "Authentication",
+        "Authorization",
+        "IAM Policies"
+      ],
+      "priority_score": 98,
+      "product_relevance_boost": 3,
+      "rationale": "Highest expansion priority_score; 4 unmapped cases; strong product relevance for Synapse cloud learning paths; high stable missing-edge impact.",
+      "priority_rank": 1,
+      "selected_for_expansion_v1": true
+    },
+    {
+      "domain": "frontend_engineering",
+      "case_count": 4,
+      "unmapped_case_count": 4,
+      "mapped_case_count": 0,
+      "stable_missing_topic_count": 8,
+      "stable_missing_edge_count": 15,
+      "top_missing_concepts": [
+        "Core Web Vitals",
+        "DOM",
+        "Bundling",
+        "Critical Rendering Path",
+        "Keyboard Navigation",
+        "ARIA",
+        "Screen Readers",
+        "JavaScript"
+      ],
+      "priority_score": 97,
+      "product_relevance_boost": 3,
+      "rationale": "Second by priority; dense Web/React/a11y concept chains; high stable missing topics including Core Web Vitals.",
+      "priority_rank": 2,
+      "selected_for_expansion_v1": true
+    },
+    {
+      "domain": "backend_engineering",
+      "case_count": 4,
+      "unmapped_case_count": 4,
+      "mapped_case_count": 0,
+      "stable_missing_topic_count": 7,
+      "stable_missing_edge_count": 12,
+      "top_missing_concepts": [
+        "Resources",
+        "Sagas",
+        "Outbox Pattern",
+        "Redis",
+        "CDN",
+        "Caching Strategies",
+        "Latency"
+      ],
+      "priority_score": 88,
+      "product_relevance_boost": 3,
+      "rationale": "Core product domain (API/auth/caching/transactions); 4 cases; high missing-endpoint concept persistence.",
+      "priority_rank": 3,
+      "selected_for_expansion_v1": true
+    },
+    {
+      "domain": "databases",
+      "case_count": 4,
+      "unmapped_case_count": 4,
+      "mapped_case_count": 0,
+      "stable_missing_topic_count": 7,
+      "stable_missing_edge_count": 10,
+      "top_missing_concepts": [
+        "B-Trees",
+        "Query Planning",
+        "Consensus",
+        "Tables",
+        "Disk Storage",
+        "Database Indexing",
+        "Partitioning"
+      ],
+      "priority_score": 84,
+      "product_relevance_boost": 3,
+      "rationale": "Foundational CS domain with clear reusable concepts (SQL, indexing, normalization, distributed DB).",
+      "priority_rank": 4,
+      "selected_for_expansion_v1": true
+    },
+    {
+      "domain": "data_engineering",
+      "case_count": 4,
+      "unmapped_case_count": 3,
+      "mapped_case_count": 1,
+      "stable_missing_topic_count": 9,
+      "stable_missing_edge_count": 12,
+      "top_missing_concepts": [
+        "Kafka",
+        "Warehouses",
+        "Batch Pipelines",
+        "Windowing",
+        "Exactly-Once",
+        "Validation",
+        "Event Logs",
+        "Schemas"
+      ],
+      "priority_score": 83,
+      "product_relevance_boost": 2,
+      "rationale": "Complements existing stream_processing inventory; covers ETL/warehouse/quality for remaining DE cases.",
+      "priority_rank": 5,
+      "selected_for_expansion_v1": true
+    },
+    {
+      "domain": "security",
+      "case_count": 4,
+      "unmapped_case_count": 4,
+      "mapped_case_count": 0,
+      "stable_missing_topic_count": 3,
+      "stable_missing_edge_count": 14,
+      "top_missing_concepts": [
+        "Least Privilege",
+        "Encryption Basics",
+        "Sessions"
+      ],
+      "priority_score": 79,
+      "product_relevance_boost": 2,
+      "rationale": "High stable missing-edge count; clear reusable AppSec/crypto curriculum units; strong product relevance.",
+      "priority_rank": 6,
+      "selected_for_expansion_v1": true
+    },
+    {
+      "domain": "mathematics",
+      "case_count": 4,
+      "unmapped_case_count": 4,
+      "mapped_case_count": 0,
+      "stable_missing_topic_count": 4,
+      "stable_missing_edge_count": 12,
+      "top_missing_concepts": [
+        "Series",
+        "Real Analysis",
+        "Linear Algebra",
+        "Combinatorics"
+      ],
+      "priority_score": 77,
+      "product_relevance_boost": 1,
+      "rationale": "Deferred to a later expansion batch (lower combined priority vs selected domains).",
+      "priority_rank": 7,
+      "selected_for_expansion_v1": false
+    },
+    {
+      "domain": "programming",
+      "case_count": 4,
+      "unmapped_case_count": 3,
+      "mapped_case_count": 1,
+      "stable_missing_topic_count": 6,
+      "stable_missing_edge_count": 8,
+      "top_missing_concepts": [
+        "Parsing",
+        "Variables",
+        "Regular Languages",
+        "Context-Free Grammars",
+        "Stack and Heap",
+        "Rust Memory Safety"
+      ],
+      "priority_score": 66,
+      "product_relevance_boost": 2,
+      "rationale": "Deferred to a later expansion batch (lower combined priority vs selected domains).",
+      "priority_rank": 8,
+      "selected_for_expansion_v1": false
+    },
+    {
+      "domain": "machine_learning",
+      "case_count": 4,
+      "unmapped_case_count": 4,
+      "mapped_case_count": 0,
+      "stable_missing_topic_count": 3,
+      "stable_missing_edge_count": 6,
+      "top_missing_concepts": [
+        "Attention Mechanisms",
+        "Overfitting",
+        "Image Classification"
+      ],
+      "priority_score": 63,
+      "product_relevance_boost": 2,
+      "rationale": "Selected for product relevance despite lower edge impact; 4 cases spanning supervised/CV/transformers/RLHF.",
+      "priority_rank": 9,
+      "selected_for_expansion_v1": true
+    },
+    {
+      "domain": "distributed_systems",
+      "case_count": 4,
+      "unmapped_case_count": 0,
+      "mapped_case_count": 4,
+      "stable_missing_topic_count": 12,
+      "stable_missing_edge_count": 19,
+      "top_missing_concepts": [
+        "Replication",
+        "HTTP",
+        "APIs",
+        "Eventual Consistency",
+        "Linearizability",
+        "Delivery Guarantees",
+        "Backpressure",
+        "Networking Basics"
+      ],
+      "priority_score": 0,
+      "product_relevance_boost": 0,
+      "rationale": "Already fully mapped to frozen inventories; not an expansion target.",
+      "priority_rank": 10,
+      "selected_for_expansion_v1": false
+    }
+  ],
+  "notes": "Inventories must be independently authored; do not construct from gold or this ranking file."
+}

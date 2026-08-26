@@ -1,0 +1,89 @@
+{
+  "domain": "compiler_construction",
+  "version": "v1",
+  "reviewed_at": "2026-08-25",
+  "provenance": "Human-authored from standard compiler-construction curriculum (lexing/parsing/semantic analysis/codegen). Not derived from Synapse gold JSONL.",
+  "review_notes": "Closed inventory for domain_curriculum_prior experiment. Prefer compact prerequisite chains.",
+  "concepts": [
+    {
+      "id": "compiler.regular_languages",
+      "title": "Regular Languages",
+      "description": "Formal languages recognized by finite automata; foundation for lexical analysis.",
+      "aliases": ["Regular Language", "Finite Automata Languages"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "compiler.lexing",
+      "title": "Lexical Analysis",
+      "description": "Tokenizes source text into a token stream using regular patterns.",
+      "aliases": ["Lexing", "Scanner", "Tokenizer"],
+      "level": "foundational",
+      "prerequisite_ids": ["compiler.regular_languages"]
+    },
+    {
+      "id": "compiler.cfg",
+      "title": "Context-Free Grammars",
+      "description": "Grammars that describe nested syntactic structure used by parsers.",
+      "aliases": ["CFG", "Context Free Grammar"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "compiler.parsing",
+      "title": "Parsing",
+      "description": "Converts a token stream into a structured parse tree or AST.",
+      "aliases": ["Parser", "Syntactic Parsing", "Syntax Analysis"],
+      "level": "intermediate",
+      "prerequisite_ids": ["compiler.cfg", "compiler.lexing"]
+    },
+    {
+      "id": "compiler.ast",
+      "title": "Abstract Syntax Trees",
+      "description": "Tree representation of program structure after parsing.",
+      "aliases": ["AST", "Parse Tree"],
+      "level": "intermediate",
+      "prerequisite_ids": ["compiler.parsing"]
+    },
+    {
+      "id": "compiler.semantic_analysis",
+      "title": "Semantic Analysis",
+      "description": "Checks meaning constraints such as types and scopes on the AST.",
+      "aliases": ["Type Checking", "Semantic Checking"],
+      "level": "intermediate",
+      "prerequisite_ids": ["compiler.ast"]
+    },
+    {
+      "id": "compiler.ir",
+      "title": "Intermediate Representation",
+      "description": "Compiler-internal program form between front end and back end.",
+      "aliases": ["IR", "Intermediate Code"],
+      "level": "intermediate",
+      "prerequisite_ids": ["compiler.semantic_analysis"]
+    },
+    {
+      "id": "compiler.codegen",
+      "title": "Code Generation",
+      "description": "Emits target machine or bytecode from IR or AST.",
+      "aliases": ["Codegen", "Backend Code Generation"],
+      "level": "advanced",
+      "prerequisite_ids": ["compiler.ir"]
+    },
+    {
+      "id": "compiler.optimization",
+      "title": "Optimization",
+      "description": "Transforms IR to improve performance while preserving semantics.",
+      "aliases": ["Compiler Optimization", "Optimizing Compilers"],
+      "level": "advanced",
+      "prerequisite_ids": ["compiler.ir"]
+    },
+    {
+      "id": "compiler.compilers",
+      "title": "Compilers",
+      "description": "End-to-end systems that translate source programs into executable form.",
+      "aliases": ["Compiler Construction", "Compiler Design"],
+      "level": "advanced",
+      "prerequisite_ids": ["compiler.codegen"]
+    }
+  ]
+}

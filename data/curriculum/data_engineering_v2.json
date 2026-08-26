@@ -1,0 +1,198 @@
+{
+  "domain": "data_engineering",
+  "version": "v2",
+  "parent_version": "v1",
+  "source": "Human-authored data-engineering curriculum; v2 revises prerequisite structure and concept abstraction. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored data-engineering curriculum; v2 revises prerequisite structure and concept abstraction. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "change_log": [
+    {
+      "change_type": "REPLACE",
+      "old": "de.etl → de.loading only (linear E→T→L→ETL chain tip)",
+      "new": "de.etl → de.extraction, de.transformation, de.loading",
+      "reason": "ETL is the composition of extract, transform, and load—not a topic that only presupposes Loading",
+      "rationale": "Direct-prerequisite semantics: understanding ETL requires all three stages as components, not a single terminal step."
+    },
+    {
+      "change_type": "REMOVE_PREREQUISITE",
+      "old": "de.warehouses → de.star_schema",
+      "new": "removed; warehouses no longer require star schema",
+      "reason": "A warehouse is an analytical store; star schema is one modeling pattern, not a hard prerequisite of warehouses",
+      "rationale": "Curriculum-order coupling (star before warehouse) was not direct prerequisite semantics."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "de.star_schema → de.dimensional only",
+      "new": "de.star_schema → de.dimensional, de.warehouses",
+      "reason": "Star schemas are typically realized as warehouse schemas",
+      "rationale": "Direct: star schema design presupposes dimensional modeling and a warehouse target for facts/dimensions."
+    },
+    {
+      "change_type": "REMOVE_PREREQUISITE",
+      "old": "de.batch → de.etl",
+      "new": "de.batch → de.source_systems",
+      "reason": "Batch pipelines are a scheduling/execution pattern broader than ETL; ETL may use batch but batch does not require ETL",
+      "rationale": "Avoided forcing Batch through ETL (curriculum packaging). Batch presupposes sources to process."
+    },
+    {
+      "change_type": "ADJUST_DIRECTNESS",
+      "old": "de.warehousing → de.warehouses, de.batch",
+      "new": "de.warehousing → de.warehouses, de.dimensional, de.batch",
+      "reason": "Warehousing practice directly includes dimensional modeling, not only stores and batch jobs",
+      "rationale": "Data Warehousing as overview requires the store, the modeling approach, and batch movement patterns."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "de.freshness had no prerequisites",
+      "new": "de.freshness → de.source_systems",
+      "reason": "Freshness is defined relative to source update timing",
+      "rationale": "Direct: freshness SLAs compare pipeline outputs to Source Systems."
+    },
+    {
+      "change_type": "ADD_PREREQUISITE",
+      "old": "de.dimensional had no prerequisites",
+      "new": "de.dimensional → de.schemas",
+      "reason": "Facts/dimensions are schema designs over typed attributes",
+      "rationale": "Dimensional modeling presupposes declared Schemas as the medium of design."
+    },
+    {
+      "change_type": "REWRITE_DESCRIPTION",
+      "old": "brief stage definitions without stated presuppositions",
+      "new": "descriptions name direct prerequisites and discourage reverse stage edges",
+      "reason": "Dependency generation sees descriptions; v1 saw frequent Extraction↔Transformation direction errors",
+      "rationale": "Explicit 'directly requires' wording clarifies stage direction without changing dependency architecture."
+    },
+    {
+      "change_type": "ADJUST_ABSTRACTION",
+      "old": "warehouses nested under star schema under dimensional modeling",
+      "new": "warehouses as store concept; star schema as modeling pattern atop warehouses + dimensional modeling",
+      "reason": "Mixed store vs modeling abstraction in one chain",
+      "rationale": "Separates analytical storage from schema pattern so prerequisites stay direct."
+    }
+  ],
+  "review_notes": "v2 focuses on direct ETL composition edges, decouples warehouses from star-schema curriculum order, and clarifies batch vs ETL abstraction.",
+  "concepts": [
+    {
+      "id": "de.source_systems",
+      "title": "Source Systems",
+      "description": "Operational systems that produce data to be integrated. Foundational producers; extraction and freshness are defined relative to these systems.",
+      "aliases": ["Source Databases", "OLTP Sources"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "de.extraction",
+      "title": "Extraction",
+      "description": "Reading data out of source systems for downstream processing. Directly requires Source Systems. Transformation depends on Extraction, not the reverse.",
+      "aliases": ["Data Extraction", "Extract"],
+      "level": "foundational",
+      "prerequisite_ids": ["de.source_systems"]
+    },
+    {
+      "id": "de.transformation",
+      "title": "Transformation",
+      "description": "Cleaning, joining, and reshaping already-extracted data. Directly requires Extraction; you transform extracts, you do not extract after transforming.",
+      "aliases": ["Data Transformation", "Transform"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.extraction"]
+    },
+    {
+      "id": "de.loading",
+      "title": "Loading",
+      "description": "Writing transformed data into a target store. Directly requires Transformation; loading presupposes cleaned/reshaped records.",
+      "aliases": ["Data Loading", "Load"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.transformation"]
+    },
+    {
+      "id": "de.etl",
+      "title": "ETL",
+      "description": "Extract-Transform-Load as a composed pipeline pattern. Directly requires Extraction, Transformation, and Loading as its three stages—not merely the final load step.",
+      "aliases": ["ETL Pipelines", "Extract Transform Load"],
+      "level": "overview",
+      "prerequisite_ids": ["de.extraction", "de.transformation", "de.loading"]
+    },
+    {
+      "id": "de.schemas",
+      "title": "Schemas",
+      "description": "Declared structure and types for datasets and tables. Foundational for validation and dimensional modeling.",
+      "aliases": ["Data Schemas", "Schema Definitions"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "de.dimensional",
+      "title": "Dimensional Modeling",
+      "description": "Modeling analytics data with facts and dimensions. Directly requires Schemas as the medium for typed fact/dimension attributes.",
+      "aliases": ["Dimensional Data Modeling"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.schemas"]
+    },
+    {
+      "id": "de.warehouses",
+      "title": "Warehouses",
+      "description": "Central analytical stores optimized for reporting workloads. Store concept; does not require star schema (star schema is a modeling pattern used inside warehouses).",
+      "aliases": ["Data Warehouse", "Analytical Warehouse"],
+      "level": "intermediate",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "de.star_schema",
+      "title": "Star Schema",
+      "description": "Fact table surrounded by denormalized dimension tables. Directly requires Dimensional Modeling and Warehouses as the usual target store.",
+      "aliases": ["Star Schemas"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.dimensional", "de.warehouses"]
+    },
+    {
+      "id": "de.batch",
+      "title": "Batch Pipelines",
+      "description": "Scheduled jobs that process finite data windows from sources. Directly requires Source Systems; batch is an execution pattern and does not presuppose ETL specifically.",
+      "aliases": ["Batch ETL", "Batch Processing Pipelines"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.source_systems"]
+    },
+    {
+      "id": "de.warehousing",
+      "title": "Data Warehousing",
+      "description": "Practices for modeling and operating analytical warehouses. Directly requires Warehouses, Dimensional Modeling, and Batch Pipelines.",
+      "aliases": ["Warehouse Engineering"],
+      "level": "overview",
+      "prerequisite_ids": ["de.warehouses", "de.dimensional", "de.batch"]
+    },
+    {
+      "id": "de.validation",
+      "title": "Validation",
+      "description": "Checking records against schema and business rules. Directly requires Schemas. Validation is an input to quality tests, not a substitute for Data Quality as a whole.",
+      "aliases": ["Data Validation"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.schemas"]
+    },
+    {
+      "id": "de.freshness",
+      "title": "Freshness",
+      "description": "How up-to-date a dataset is relative to its sources. Directly requires Source Systems against which freshness is measured.",
+      "aliases": ["Data Freshness", "SLA Freshness"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.source_systems"]
+    },
+    {
+      "id": "de.data_tests",
+      "title": "Data Tests",
+      "description": "Automated assertions over pipeline outputs and invariants. Directly requires Validation and Freshness as primary quality dimensions under test.",
+      "aliases": ["Pipeline Tests", "Data Quality Tests"],
+      "level": "intermediate",
+      "prerequisite_ids": ["de.validation", "de.freshness"]
+    },
+    {
+      "id": "de.data_quality",
+      "title": "Data Quality",
+      "description": "Fitness of data for intended use. Directly requires Data Tests as the operational mechanism; Validation alone is not the full quality practice.",
+      "aliases": ["DQ", "Data Quality Management"],
+      "level": "overview",
+      "prerequisite_ids": ["de.data_tests"]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "version": "curated_aliases_v1",
+  "matching_version": "fair_quality_v1+curated_aliases_v1",
+  "note": "Manually approved evaluation aliases only. Each entry was reviewed against unmatched fair-scoring topics. Do not treat this file as model improvement.",
+  "entries": [
+    {
+      "canonical": "XSS",
+      "aliases": ["Cross-Site Scripting (XSS)", "Cross-Site Scripting"],
+      "case_ids": ["web_security_001"],
+      "classification": "EXACT_ALIAS",
+      "reason": "Parenthetical expansion of the same vulnerability acronym. Fair Jaccard blocks 3-letter gold acronyms via containment, so the expanded form stayed unmatched.",
+      "approved": true
+    },
+    {
+      "canonical": "SRE",
+      "aliases": ["Introduction to SRE"],
+      "case_ids": ["sre_reliability_001"],
+      "classification": "TITLE_PARAPHRASE",
+      "reason": "Tutorial prefix around the identical SRE acronym. Three-letter gold title blocks containment matching.",
+      "approved": true
+    },
+    {
+      "canonical": "Async Processing",
+      "aliases": ["Asynchronous Processing", "Introduction to Asynchronous Processing"],
+      "case_ids": ["queues_001"],
+      "classification": "CLEAR_SYNONYM",
+      "reason": "Async is the standard abbreviation of Asynchronous; same processing concept. Light stemming does not equate async↔asynchronous.",
+      "approved": true
+    },
+    {
+      "canonical": "SELECT Queries",
+      "aliases": ["Data Retrieval with SELECT"],
+      "case_ids": ["sql_basics_001"],
+      "classification": "TITLE_PARAPHRASE",
+      "reason": "Both name the SELECT-based relational data retrieval skill; not a broader or narrower topic.",
+      "approved": true
+    },
+    {
+      "canonical": "Sorting Results",
+      "aliases": ["Sorting Data with ORDER BY"],
+      "case_ids": ["sql_basics_001"],
+      "classification": "TITLE_PARAPHRASE",
+      "reason": "ORDER BY is the SQL mechanism for sorting query results — same concept as gold Sorting Results.",
+      "approved": true
+    },
+    {
+      "canonical": "Incident Response",
+      "aliases": ["Incident Management"],
+      "case_ids": ["sre_reliability_001"],
+      "classification": "CLEAR_SYNONYM",
+      "reason": "In SRE practice, incident management and incident response name the same operational discipline.",
+      "approved": true
+    },
+    {
+      "canonical": "Secure SDLC",
+      "aliases": ["Software Development Lifecycle (SDLC)"],
+      "case_ids": ["appsec_sdlc_001"],
+      "classification": "TITLE_PARAPHRASE",
+      "reason": "Same lifecycle name as the existing Secure SDLC alias, with a trailing acronym; aliases are exact-normalized only so the parenthetical form needs an explicit entry.",
+      "approved": true
+    }
+  ]
+}

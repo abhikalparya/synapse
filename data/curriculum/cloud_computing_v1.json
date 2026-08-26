@@ -1,0 +1,264 @@
+{
+  "domain": "cloud_computing",
+  "version": "v1",
+  "source": "Human-authored from standard cloud computing curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "provenance": "Human-authored from standard cloud computing curriculum. Not derived from Synapse gold JSONL or failure artifacts.",
+  "created_at": "2026-08-25",
+  "reviewed_at": "2026-08-25",
+  "review_status": "reviewed",
+  "review_notes": "Covers cloud service models, containers/K8s, SRE reliability, and cloud IAM.",
+  "concepts": [
+    {
+      "id": "cloud.virtualization",
+      "title": "Virtualization",
+      "description": "Running multiple isolated machine images on shared physical hardware.",
+      "aliases": [
+        "Hardware Virtualization",
+        "VMs"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "cloud.iaas",
+      "title": "IaaS",
+      "description": "Infrastructure-as-a-Service: rented compute, storage, and networking.",
+      "aliases": [
+        "Infrastructure as a Service",
+        "IaaS Cloud"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "cloud.virtualization"
+      ]
+    },
+    {
+      "id": "cloud.paas",
+      "title": "PaaS",
+      "description": "Platform-as-a-Service: managed runtimes and deployment platforms.",
+      "aliases": [
+        "Platform as a Service",
+        "PaaS Cloud"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "cloud.iaas"
+      ]
+    },
+    {
+      "id": "cloud.saas",
+      "title": "SaaS",
+      "description": "Software-as-a-Service: applications delivered as hosted services.",
+      "aliases": [
+        "Software as a Service",
+        "SaaS Applications"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "cloud.paas"
+      ]
+    },
+    {
+      "id": "cloud.intro",
+      "title": "Cloud Computing",
+      "description": "On-demand networked access to shared configurable computing resources.",
+      "aliases": [
+        "Cloud",
+        "Cloud Basics"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "cloud.saas"
+      ]
+    },
+    {
+      "id": "cloud.containers",
+      "title": "Containers",
+      "description": "Lightweight OS-level isolation packaging an app with its dependencies.",
+      "aliases": [
+        "Containerization",
+        "Linux Containers"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "cloud.virtualization"
+      ]
+    },
+    {
+      "id": "cloud.docker",
+      "title": "Docker",
+      "description": "Popular tooling for building and running container images.",
+      "aliases": [
+        "Docker Engine",
+        "Container Images"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "cloud.containers"
+      ]
+    },
+    {
+      "id": "cloud.orchestration",
+      "title": "Orchestration",
+      "description": "Automated placement, scaling, and healing of containerized workloads.",
+      "aliases": [
+        "Container Orchestration"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "cloud.docker"
+      ]
+    },
+    {
+      "id": "cloud.kubernetes",
+      "title": "Kubernetes",
+      "description": "De-facto orchestrator for scheduling pods and services across a cluster.",
+      "aliases": [
+        "K8s",
+        "Kubernetes Cluster"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "cloud.orchestration"
+      ]
+    },
+    {
+      "id": "cloud.deployments",
+      "title": "Deployments",
+      "description": "Declarative rollout of application replicas and updates.",
+      "aliases": [
+        "Kubernetes Deployments",
+        "App Deployments"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "cloud.kubernetes"
+      ]
+    },
+    {
+      "id": "cloud.sli_slo",
+      "title": "SLIs and SLOs",
+      "description": "Service level indicators and objectives that quantify reliability targets.",
+      "aliases": [
+        "SLI",
+        "SLO",
+        "Service Level Objectives"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "cloud.error_budgets",
+      "title": "Error Budgets",
+      "description": "Allowed unreliability derived from SLOs that balances velocity and reliability.",
+      "aliases": [
+        "Error Budget"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "cloud.sli_slo"
+      ]
+    },
+    {
+      "id": "cloud.incident_response",
+      "title": "Incident Response",
+      "description": "Process for detecting, mitigating, and learning from production incidents.",
+      "aliases": [
+        "Incident Management"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "cloud.error_budgets"
+      ]
+    },
+    {
+      "id": "cloud.capacity",
+      "title": "Capacity Planning",
+      "description": "Forecasting and provisioning resources to meet demand under SLOs.",
+      "aliases": [
+        "Capacity Management"
+      ],
+      "level": "advanced",
+      "prerequisite_ids": [
+        "cloud.sli_slo"
+      ]
+    },
+    {
+      "id": "cloud.sre",
+      "title": "SRE",
+      "description": "Engineering discipline applying software practices to operations and reliability.",
+      "aliases": [
+        "Site Reliability Engineering",
+        "Site Reliability"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "cloud.incident_response",
+        "cloud.capacity"
+      ]
+    },
+    {
+      "id": "cloud.identities",
+      "title": "Identities",
+      "description": "Principals (users, services) that can authenticate to cloud resources.",
+      "aliases": [
+        "Cloud Identities",
+        "Identity Principals"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "cloud.authentication",
+      "title": "Authentication",
+      "description": "Verifying identity of a principal before granting access.",
+      "aliases": [
+        "AuthN",
+        "Identity Verification"
+      ],
+      "level": "foundational",
+      "prerequisite_ids": [
+        "cloud.identities"
+      ]
+    },
+    {
+      "id": "cloud.authorization",
+      "title": "Authorization",
+      "description": "Deciding which actions an authenticated principal may perform.",
+      "aliases": [
+        "AuthZ",
+        "Access Control"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "cloud.authentication"
+      ]
+    },
+    {
+      "id": "cloud.iam_policies",
+      "title": "IAM Policies",
+      "description": "Declarative rules attaching permissions to identities and resources.",
+      "aliases": [
+        "Identity and Access Policies",
+        "Policy Documents"
+      ],
+      "level": "intermediate",
+      "prerequisite_ids": [
+        "cloud.authorization"
+      ]
+    },
+    {
+      "id": "cloud.iam",
+      "title": "Cloud IAM",
+      "description": "Cloud identity and access management spanning identities, auth, and policies.",
+      "aliases": [
+        "IAM",
+        "Identity and Access Management"
+      ],
+      "level": "overview",
+      "prerequisite_ids": [
+        "cloud.iam_policies"
+      ]
+    }
+  ]
+}

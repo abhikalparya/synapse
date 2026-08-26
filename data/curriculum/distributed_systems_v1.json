@@ -1,0 +1,161 @@
+{
+  "domain": "distributed_systems",
+  "version": "v1",
+  "reviewed_at": "2026-08-25",
+  "provenance": "Human-authored from standard distributed-systems curriculum (networking, replication, consensus, consistency, messaging). Not derived from Synapse gold JSONL.",
+  "review_notes": "Covers client-server, consensus, CAP/consistency, and queue-based async processing cases.",
+  "concepts": [
+    {
+      "id": "dist.networking_basics",
+      "title": "Networking Basics",
+      "description": "Hosts, ports, packets, and basic end-to-end communication assumptions.",
+      "aliases": ["Computer Networks Basics", "Network Fundamentals"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "dist.http",
+      "title": "HTTP",
+      "description": "Request/response application protocol commonly used by web clients and servers.",
+      "aliases": ["Hypertext Transfer Protocol", "HTTP Protocol"],
+      "level": "foundational",
+      "prerequisite_ids": ["dist.networking_basics"]
+    },
+    {
+      "id": "dist.client_server",
+      "title": "Client-Server",
+      "description": "Architecture where clients request services from servers over a network.",
+      "aliases": ["Client Server Architecture", "Client/Server"],
+      "level": "foundational",
+      "prerequisite_ids": ["dist.http"]
+    },
+    {
+      "id": "dist.apis",
+      "title": "APIs",
+      "description": "Contracts that expose server capabilities to remote clients.",
+      "aliases": ["Application Programming Interfaces", "Web APIs"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.client_server"]
+    },
+    {
+      "id": "dist.intro",
+      "title": "Distributed Systems Intro",
+      "description": "Overview of systems composed of networked processes that cooperate.",
+      "aliases": ["Introduction to Distributed Systems", "Distributed Systems Overview"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.apis"]
+    },
+    {
+      "id": "dist.failure_models",
+      "title": "Failure Models",
+      "description": "Crash, omission, and Byzantine failure assumptions used in protocol design.",
+      "aliases": ["Fault Models", "Failure Assumptions"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "dist.replication",
+      "title": "Replication",
+      "description": "Maintaining copies of state across multiple nodes for availability and durability.",
+      "aliases": ["Data Replication", "State Replication", "Replicated State"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.failure_models"]
+    },
+    {
+      "id": "dist.paxos",
+      "title": "Paxos",
+      "description": "Classic consensus protocol family for agreeing on values under failures.",
+      "aliases": ["Paxos Protocol"],
+      "level": "advanced",
+      "prerequisite_ids": ["dist.replication"]
+    },
+    {
+      "id": "dist.raft",
+      "title": "Raft",
+      "description": "Leader-based consensus algorithm designed for understandability.",
+      "aliases": ["Raft Consensus", "Raft Protocol"],
+      "level": "advanced",
+      "prerequisite_ids": ["dist.replication"]
+    },
+    {
+      "id": "dist.consensus",
+      "title": "Consensus",
+      "description": "Agreement among nodes on a single value or log entry despite failures.",
+      "aliases": ["Distributed Consensus", "Agreement Protocols"],
+      "level": "advanced",
+      "prerequisite_ids": ["dist.paxos", "dist.raft"]
+    },
+    {
+      "id": "dist.cap",
+      "title": "CAP Theorem",
+      "description": "Trade-off framing among consistency, availability, and partition tolerance.",
+      "aliases": ["CAP", "Brewer's Theorem"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.replication"]
+    },
+    {
+      "id": "dist.eventual_consistency",
+      "title": "Eventual Consistency",
+      "description": "Replicas may diverge temporarily but converge in the absence of updates.",
+      "aliases": ["Eventually Consistent"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.cap"]
+    },
+    {
+      "id": "dist.linearizability",
+      "title": "Linearizability",
+      "description": "Strong consistency model where operations appear instantaneous and ordered.",
+      "aliases": ["Atomic Consistency", "Linearizable"],
+      "level": "advanced",
+      "prerequisite_ids": ["dist.cap"]
+    },
+    {
+      "id": "dist.consistency_models",
+      "title": "Consistency Models",
+      "description": "Spectrum of guarantees describing how replicas expose shared state.",
+      "aliases": ["Data Consistency Models"],
+      "level": "advanced",
+      "prerequisite_ids": ["dist.eventual_consistency", "dist.linearizability"]
+    },
+    {
+      "id": "dist.producer_consumer",
+      "title": "Producer-Consumer",
+      "description": "Pattern separating work producers from work consumers via a buffer.",
+      "aliases": ["Producer Consumer Pattern"],
+      "level": "foundational",
+      "prerequisite_ids": []
+    },
+    {
+      "id": "dist.message_queues",
+      "title": "Message Queues",
+      "description": "Durable or buffered channels that decouple senders and receivers.",
+      "aliases": ["Queueing", "Message Queue", "MQ"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.producer_consumer"]
+    },
+    {
+      "id": "dist.delivery_guarantees",
+      "title": "Delivery Guarantees",
+      "description": "At-most-once, at-least-once, and related delivery semantics for messaging.",
+      "aliases": ["Message Delivery Semantics"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.message_queues"]
+    },
+    {
+      "id": "dist.backpressure",
+      "title": "Backpressure",
+      "description": "Flow-control mechanisms that slow producers when consumers cannot keep up.",
+      "aliases": ["Flow Control", "Consumer Backpressure"],
+      "level": "intermediate",
+      "prerequisite_ids": ["dist.message_queues"]
+    },
+    {
+      "id": "dist.async_processing",
+      "title": "Async Processing",
+      "description": "Executing work asynchronously via queues rather than synchronous request chains.",
+      "aliases": ["Asynchronous Processing", "Async Workloads"],
+      "level": "advanced",
+      "prerequisite_ids": ["dist.delivery_guarantees", "dist.backpressure"]
+    }
+  ]
+}
