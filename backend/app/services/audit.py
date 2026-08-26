@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from app.models.ai_ops import AuditFinding, AuditReport
 from app.prompts.audit import build_audit_prompt
 from app.services.llm import call_llm, llm_operation
+from app.services.operation_context import synapse_operation
 from app.services.proposal_common import parse_llm_json_object
 from app.services.topics import load_all_topics, load_dependencies
 
@@ -146,4 +147,5 @@ async def audit_graph(topics: list[dict], dependencies: list[dict]) -> AuditRepo
 
 async def run_audit() -> AuditReport:
     """Read-only: loads topics/dependencies and returns a report. Nothing here writes."""
-    return await audit_graph(load_all_topics(), load_dependencies())
+    with synapse_operation():
+        return await audit_graph(load_all_topics(), load_dependencies())

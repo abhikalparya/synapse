@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from app.models.proposal import Proposal
+from app.services.operation_context import operation_id_from_meta
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,10 @@ def append_proposal_event(event: dict[str, Any]) -> None:
         logger.warning("Failed to append proposal event: %s", exc)
 
 
+def _proposal_operation_id(proposal: Proposal) -> str | None:
+    return operation_id_from_meta(proposal.generation_meta)
+
+
 def log_proposal_created(proposal: Proposal) -> None:
     confidences = [t.confidence for t in proposal.topics]
     skipped = [
@@ -80,11 +85,13 @@ def log_proposal_created(proposal: Proposal) -> None:
         for s in proposal.skipped_dependencies
     ]
     meta = dict(proposal.generation_meta or {})
+    op_id = _proposal_operation_id(proposal)
     append_proposal_event(
         {
             "event": "proposal_created",
             "stage": "presented_for_review",
             "proposal_id": proposal.id,
+            "operation_id": op_id,
             "mode": proposal.mode,
             "source": proposal.source,
             "topic_count": len(proposal.topics),
@@ -124,6 +131,7 @@ def log_proposal_created(proposal: Proposal) -> None:
                 "event": "deterministically_rejected",
                 "stage": "deterministically_rejected",
                 "proposal_id": proposal.id,
+                "operation_id": op_id,
                 "mode": proposal.mode,
                 "category": s["category"],
                 "from_title": s["from_title"],
@@ -146,6 +154,8 @@ def log_proposal_applied(proposal: Proposal, *, fingerprint_at_apply: str | None
             "event": "proposal_applied",
             "stage": "modified" if modified else "accepted_unchanged",
             "proposal_id": proposal.id,
+            "operation_id": _proposal_operation_id(proposal),
+            "snapshot_id": proposal.snapshot_id,
             "mode": proposal.mode,
             "outcome": "modified" if modified else "accepted_unchanged",
             "modified": modified,
@@ -164,6 +174,7 @@ def log_proposal_discarded(proposal: Proposal) -> None:
             "event": "proposal_discarded",
             "stage": "rejected",
             "proposal_id": proposal.id,
+            "operation_id": _proposal_operation_id(proposal),
             "mode": proposal.mode,
             "outcome": "rejected",
             "mean_confidence": (sum(confidences) / len(confidences)) if confidences else None,
@@ -180,6 +191,7 @@ def log_proposal_modified(proposal: Proposal, *, edits_count: int = 1) -> None:
             "event": "proposal_modified",
             "stage": "modified",
             "proposal_id": proposal.id,
+            "operation_id": _proposal_operation_id(proposal),
             "mode": proposal.mode,
             "edits_count": edits_count,
             "fingerprint": proposal_fingerprint(proposal),
@@ -187,14 +199,18 @@ def log_proposal_modified(proposal: Proposal, *, edits_count: int = 1) -> None:
     )
 
 
-def log_rollback(snapshot_id: str) -> None:
-    append_proposal_event(
-        {
-            "event": "rollback",
-            "stage": "rollback",
-            "snapshot_id": snapshot_id,
-        },
-    )
+def log_rollback(snapshot_id: str, *, proposal: Proposal | None = None) -> None:
+    event: dict[str, Any] = {
+        "event": "rollback",
+        "stage": "rollback",
+        "snapshot_id": snapshot_id,
+    }
+    if proposal is not None:
+        event["proposal_id"] = proposal.id
+        op_id = _proposal_operation_id(proposal)
+        if op_id:
+            event["operation_id"] = op_id
+    append_proposal_event(event)
 
 
 def iter_proposal_events(path: Path | None = None) -> list[dict[str, Any]]:

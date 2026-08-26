@@ -17,8 +17,9 @@ from pathlib import Path
 from app.models.proposal import Proposal
 from app.prompts.obsidian import build_obsidian_import_prompt
 from app.services.graph import compute_prerequisite_chain
-from app.services.llm import call_llm, llm_operation
+from app.services.llm import call_llm_detailed, llm_operation
 from app.services.obsidian_vault import load_vault
+from app.services.operation_context import finalize_generation_meta, synapse_operation
 from app.services.proposal_common import build_topics_and_dependencies, parse_llm_json_object, review_confidence_threshold
 from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
@@ -52,45 +53,49 @@ async def import_vault(vault_path: str) -> Proposal:
         [(n.title, n.body, n.links) for n in notes],
         known_topic_titles=known_titles,
     )
-    with llm_operation("obsidian_import"):
-        raw = await call_llm(prompt)
-    data = parse_llm_json_object(raw)
 
-    raw_topics = data.get("topics")
-    raw_deps = data.get("dependencies")
-    if not isinstance(raw_topics, list):
-        raw_topics = []
-    if not isinstance(raw_deps, list):
-        raw_deps = []
+    with synapse_operation():
+        with llm_operation("obsidian_import"):
+            record = await call_llm_detailed(prompt)
+        data = parse_llm_json_object(record.text)
 
-    proposed_topics, proposed_dependencies, skipped_dependencies = build_topics_and_dependencies(
-        raw_topics,
-        raw_deps,
-        confidence_threshold=review_confidence_threshold(),
-    )
+        raw_topics = data.get("topics")
+        raw_deps = data.get("dependencies")
+        if not isinstance(raw_topics, list):
+            raw_topics = []
+        if not isinstance(raw_deps, list):
+            raw_deps = []
 
-    # Best-effort: trace each kept topic back to its source note when the LLM used the
-    # note's exact title (the prompt asks for this on 1:1 mappings) -- topics that were
-    # merged from multiple notes, or renamed, simply get no source_note_path, which is a
-    # harmless degradation (no Resource gets attached for those on apply).
-    notes_by_title = {n.title.casefold(): n for n in notes}
-    for pt in proposed_topics:
-        note = notes_by_title.get(pt.title.casefold())
-        if note is not None:
-            pt.source_note_path = note.relative_path
+        proposed_topics, proposed_dependencies, skipped_dependencies = build_topics_and_dependencies(
+            raw_topics,
+            raw_deps,
+            confidence_threshold=review_confidence_threshold(),
+        )
 
-    proposal = Proposal(
-        id=uuid.uuid4().hex,
-        status="pending",
-        mode="ingest",
-        source=f"Obsidian vault import: {vault_dir}",
-        topics=proposed_topics,
-        dependencies=proposed_dependencies,
-        skipped_dependencies=skipped_dependencies,
-        created_at=datetime.now(timezone.utc),
-    )
-    save_proposal(proposal)
-    log_proposal_created(proposal)
+        # Best-effort: trace each kept topic back to its source note when the LLM used the
+        # note's exact title (the prompt asks for this on 1:1 mappings) -- topics that were
+        # merged from multiple notes, or renamed, simply get no source_note_path, which is a
+        # harmless degradation (no Resource gets attached for those on apply).
+        notes_by_title = {n.title.casefold(): n for n in notes}
+        for pt in proposed_topics:
+            note = notes_by_title.get(pt.title.casefold())
+            if note is not None:
+                pt.source_note_path = note.relative_path
+
+        meta = finalize_generation_meta({"generation_strategy": "obsidian_import"})
+        proposal = Proposal(
+            id=uuid.uuid4().hex,
+            status="pending",
+            mode="ingest",
+            source=f"Obsidian vault import: {vault_dir}",
+            topics=proposed_topics,
+            dependencies=proposed_dependencies,
+            skipped_dependencies=skipped_dependencies,
+            generation_meta=meta,
+            created_at=datetime.now(timezone.utc),
+        )
+        save_proposal(proposal)
+        log_proposal_created(proposal)
 
     logger.info(
         "Obsidian import proposal %s built from %s notes: topics=%s dependencies=%s skipped=%s",

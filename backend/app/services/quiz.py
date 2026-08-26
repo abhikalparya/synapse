@@ -18,6 +18,7 @@ from app.models.topic import Topic
 from app.prompts.quiz import build_quiz_prompt
 from app.services.file_handler import read_raw_note, resolve_raw_note_file
 from app.services.llm import call_llm, llm_operation
+from app.services.operation_context import synapse_operation
 from app.services.topics import get_topic_by_id, update_topic
 
 logger = logging.getLogger(__name__)
@@ -105,36 +106,37 @@ async def generate_quiz_for_topic(topic_id: str) -> QuizPublic:
     if not topic.summary.strip() and not resource_texts:
         raise ValueError("Topic has no summary or readable resources to quiz from")
 
-    prompt = build_quiz_prompt(topic.title, topic.summary, resource_texts)
-    with llm_operation("quiz"):
-        raw = await call_llm(prompt)
-    data = _parse_quiz_json(raw)
+    with synapse_operation():
+        prompt = build_quiz_prompt(topic.title, topic.summary, resource_texts)
+        with llm_operation("quiz"):
+            raw = await call_llm(prompt)
+        data = _parse_quiz_json(raw)
 
-    raw_questions = data.get("questions")
-    if not isinstance(raw_questions, list) or not raw_questions:
-        raise ValueError("LLM response did not include a non-empty 'questions' list")
+        raw_questions = data.get("questions")
+        if not isinstance(raw_questions, list) or not raw_questions:
+            raise ValueError("LLM response did not include a non-empty 'questions' list")
 
-    questions: list[QuizQuestion] = []
-    for q in raw_questions:
-        if not isinstance(q, dict):
-            continue
-        question_text = str(q.get("question", "")).strip()
-        choices_raw = q.get("choices")
-        choices = [str(c).strip() for c in choices_raw] if isinstance(choices_raw, list) else []
-        try:
-            correct_index = int(q.get("correct_index", -1))
-        except (TypeError, ValueError):
-            correct_index = -1
-        if not question_text or len(choices) < 2 or not (0 <= correct_index < len(choices)):
-            continue
-        questions.append(QuizQuestion(question=question_text, choices=choices, correct_index=correct_index))
+        questions: list[QuizQuestion] = []
+        for q in raw_questions:
+            if not isinstance(q, dict):
+                continue
+            question_text = str(q.get("question", "")).strip()
+            choices_raw = q.get("choices")
+            choices = [str(c).strip() for c in choices_raw] if isinstance(choices_raw, list) else []
+            try:
+                correct_index = int(q.get("correct_index", -1))
+            except (TypeError, ValueError):
+                correct_index = -1
+            if not question_text or len(choices) < 2 or not (0 <= correct_index < len(choices)):
+                continue
+            questions.append(QuizQuestion(question=question_text, choices=choices, correct_index=correct_index))
 
-    if not questions:
-        raise ValueError("LLM did not return any well-formed questions")
+        if not questions:
+            raise ValueError("LLM did not return any well-formed questions")
 
-    quiz = Quiz(topic_id=topic_id, questions=questions, created_at=datetime.now(timezone.utc))
-    save_quiz(quiz)
-    update_topic(topic_id, quiz_passed=False)
+        quiz = Quiz(topic_id=topic_id, questions=questions, created_at=datetime.now(timezone.utc))
+        save_quiz(quiz)
+        update_topic(topic_id, quiz_passed=False)
 
     logger.info("Generated quiz for topic %s: %s question(s)", topic_id, len(questions))
     return QuizPublic(

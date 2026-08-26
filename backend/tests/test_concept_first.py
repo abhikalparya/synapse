@@ -296,17 +296,28 @@ def test_baseline_behavior_unchanged_and_concept_first_requires_explicit_selecti
 
     baseline_prompt_calls: list[str] = []
 
-    async def _baseline_llm(prompt: str, **kwargs):
+    async def _baseline_detailed(prompt: str, **kwargs):
         baseline_prompt_calls.append(prompt)
-        return json.dumps(
-            {
-                "topics": [{"title": "A", "summary": "a", "confidence": 0.9}],
-                "dependencies": [],
-            }
+        return LLMCallRecord(
+            text=json.dumps(
+                {
+                    "topics": [{"title": "A", "summary": "a", "confidence": 0.9}],
+                    "dependencies": [],
+                }
+            ),
+            latency_ms=1.0,
+            provider="mock",
+            model="mock",
+            input_tokens=1,
+            output_tokens=1,
+            tokens_estimated=False,
+            estimated_cost_usd=None,
+            success=True,
+            operation="ingest",
         )
 
     async def _run():
-        with patch("app.services.ingest.call_llm", new=AsyncMock(side_effect=_baseline_llm)):
+        with patch("app.services.ingest.call_llm_detailed", new=AsyncMock(side_effect=_baseline_detailed)):
             with patch("app.services.ingest.save_proposal"):
                 with patch("app.services.ingest.log_proposal_created"):
                     with patch("app.services.ingest.load_all_topics", return_value=[]):

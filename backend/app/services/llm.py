@@ -47,6 +47,23 @@ class LLMCallRecord:
     success: bool
     error: str | None = None
     operation: str = ""
+    operation_id: str | None = None
+
+
+def llm_record_to_summary(record: LLMCallRecord) -> dict:
+    summary: dict = {
+        "operation": record.operation,
+        "provider": record.provider,
+        "model": record.model,
+        "latency_ms": record.latency_ms,
+        "input_tokens": record.input_tokens,
+        "output_tokens": record.output_tokens,
+        "estimated_cost_usd": record.estimated_cost_usd,
+        "success": record.success,
+    }
+    if not record.success and record.error:
+        summary["error"] = record.error
+    return summary
 
 
 def _clean(raw: str | None) -> str:
@@ -183,7 +200,7 @@ def _append_usage_log(record: LLMCallRecord) -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            **{k: v for k, v in asdict(record).items() if k != "text"},
+            **{k: v for k, v in asdict(record).items() if k not in ("text",)},
             "response_chars": len(record.text),
         }
         with LLM_USAGE_LOG.open("a", encoding="utf-8") as fh:
@@ -192,7 +209,17 @@ def _append_usage_log(record: LLMCallRecord) -> None:
         logger.warning("Failed to append LLM usage log: %s", exc)
 
 
+def _attach_operation_context(record: LLMCallRecord) -> None:
+    from app.services.operation_context import append_llm_summary, get_operation_id
+
+    op_id = get_operation_id()
+    if op_id:
+        record.operation_id = op_id
+        append_llm_summary(llm_record_to_summary(record))
+
+
 def _publish_record(record: LLMCallRecord) -> None:
+    _attach_operation_context(record)
     sink = _llm_sink.get()
     if sink is not None:
         sink.append(record)

@@ -393,6 +393,18 @@ sites individually. Settings piggyback on exactly the same choke point:
   per-model special case would only work for some configurations; a plain prompt
   instruction works the same way regardless of which provider is active.
 
+**Operation correlation (`operation_id`).** Each user-facing AI action (ingest, expand,
+audit, reshape, Obsidian import, ask, quiz generation) begins a logical operation with a
+single `operation_id` (UUID hex). That id is attached to:
+
+- every LLM usage line in `backend/data/llm_usage.jsonl` (when logging is enabled)
+- `Proposal.generation_meta` (`operation_id` plus `llm_calls[]` summaries)
+- proposal lifecycle events (`proposal_created`, `proposal_applied`, `proposal_discarded`, and rollback when deterministically known)
+
+`operation_id` is **not** a distributed trace id, HTTP request id, or graph-row provenance
+marker — it only correlates one logical AI workflow with its LLM calls, resulting proposal,
+and apply/discard/rollback outcomes where those relationships can be established honestly.
+
 **How to use it.**
 
 - Set `LLM_PROVIDER` in `.env` to `openai` (default), `gemini`, or `openai_compatible`,

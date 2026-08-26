@@ -17,7 +17,8 @@ from app.models.proposal import Proposal
 from app.prompts.ingest import build_ingest_prompt
 from app.services.file_handler import read_raw_note, resolve_raw_note_file
 from app.services.generation_strategy import resolve_runtime_generation_strategy
-from app.services.llm import call_llm, llm_operation
+from app.services.llm import call_llm_detailed, llm_operation
+from app.services.operation_context import finalize_generation_meta, synapse_operation
 from app.services.proposal_common import build_topics_and_dependencies, parse_llm_json_object, review_confidence_threshold
 from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
@@ -91,30 +92,31 @@ async def run_ingest(
     if not source_text.strip():
         raise ValueError("Provide at least one of: goal, topics, filenames (with resolvable content)")
 
-    strategy = resolve_runtime_generation_strategy(generation_strategy)
-    if strategy == "domain_curriculum_prior":
-        return await _run_ingest_domain_curriculum_prior(
-            source_text=source_text,
-            source_errors=source_errors,
-            source_label=source_label,
-            curriculum_domain=curriculum_domain,
-            require_domain_prior=require_domain_prior,
-        )
-    if strategy == "domain_prior_edge_classifier":
-        return await _run_ingest_domain_prior_edge_classifier(
-            source_text=source_text,
-            source_errors=source_errors,
-            source_label=source_label,
-            curriculum_domain=curriculum_domain,
-            require_domain_prior=require_domain_prior,
-        )
+    with synapse_operation():
+        strategy = resolve_runtime_generation_strategy(generation_strategy)
+        if strategy == "domain_curriculum_prior":
+            return await _run_ingest_domain_curriculum_prior(
+                source_text=source_text,
+                source_errors=source_errors,
+                source_label=source_label,
+                curriculum_domain=curriculum_domain,
+                require_domain_prior=require_domain_prior,
+            )
+        if strategy == "domain_prior_edge_classifier":
+            return await _run_ingest_domain_prior_edge_classifier(
+                source_text=source_text,
+                source_errors=source_errors,
+                source_label=source_label,
+                curriculum_domain=curriculum_domain,
+                require_domain_prior=require_domain_prior,
+            )
 
-    return await _run_ingest_baseline(
-        source_text=source_text,
-        source_errors=source_errors,
-        source_label=source_label,
-        generation_meta={"generation_strategy": "baseline"},
-    )
+        return await _run_ingest_baseline(
+            source_text=source_text,
+            source_errors=source_errors,
+            source_label=source_label,
+            generation_meta={"generation_strategy": "baseline"},
+        )
 
 
 async def _run_ingest_baseline(
@@ -127,7 +129,8 @@ async def _run_ingest_baseline(
     known_titles = sorted({str(r.get("title", "")).strip() for r in load_all_topics() if r.get("title")})
     prompt = build_ingest_prompt(source_text, known_topic_titles=known_titles)
     with llm_operation("ingest"):
-        raw = await call_llm(prompt)
+        record = await call_llm_detailed(prompt)
+    raw = record.text
     data = parse_llm_json_object(raw)
 
     raw_topics = data.get("topics")
@@ -143,7 +146,7 @@ async def _run_ingest_baseline(
         confidence_threshold=review_confidence_threshold(),
     )
 
-    meta = dict(generation_meta or {"generation_strategy": "baseline"})
+    meta = finalize_generation_meta(generation_meta or {"generation_strategy": "baseline"})
     proposal = Proposal(
         id=uuid.uuid4().hex,
         status="pending",
@@ -244,10 +247,10 @@ async def _run_ingest_domain_curriculum_prior(
 
     errors = list(source_errors)
     errors.extend(result.errors)
-    meta = {
-        **result.to_meta(),
-        **resolution_to_meta(resolution),
-    }
+    meta = finalize_generation_meta(
+        {**result.to_meta(), **resolution_to_meta(resolution)},
+        generation_strategy="domain_curriculum_prior",
+    )
     proposal = Proposal(
         id=uuid.uuid4().hex,
         status="pending",
@@ -350,7 +353,10 @@ async def _run_ingest_domain_prior_edge_classifier(
 
     errors = list(source_errors)
     errors.extend(result.errors)
-    meta = {**result.to_meta(), **resolution_to_meta(resolution)}
+    meta = finalize_generation_meta(
+        {**result.to_meta(), **resolution_to_meta(resolution)},
+        generation_strategy="domain_prior_edge_classifier",
+    )
     proposal = Proposal(
         id=uuid.uuid4().hex,
         status="pending",

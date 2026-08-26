@@ -74,6 +74,10 @@ def restore_snapshot(snapshot_id: str | None = None) -> dict[str, Any]:
     if not snap_path.is_file():
         raise LookupError(f"No snapshot with id {resolved_id!r}")
 
+    from app.services.proposals import find_applied_proposal_by_snapshot
+
+    linked = find_applied_proposal_by_snapshot(resolved_id)
+
     # Drop pooled connections first so nothing holds a stale handle to the file we're
     # about to overwrite via a fresh live-backup copy.
     engine.dispose()
@@ -93,7 +97,7 @@ def restore_snapshot(snapshot_id: str | None = None) -> dict[str, Any]:
         n_deps = session.scalar(select(func.count()).select_from(DependencyRow)) or 0
 
     logger.info("Restored graph snapshot %s (topics=%s, dependencies=%s)", resolved_id, n_topics, n_deps)
-    log_rollback(resolved_id)
+    log_rollback(resolved_id, proposal=linked)
     return {
         "snapshot_id": resolved_id,
         "restored_topics": n_topics,

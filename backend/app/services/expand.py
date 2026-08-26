@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 
 from app.models.proposal import Proposal
 from app.prompts.expand import build_expand_prompt
-from app.services.llm import call_llm, llm_operation
+from app.services.llm import call_llm_detailed, llm_operation
+from app.services.operation_context import finalize_generation_meta, synapse_operation
 from app.services.proposal_common import build_topics_and_dependencies, parse_llm_json_object, review_confidence_threshold
 from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
@@ -38,40 +39,44 @@ async def run_expand(*, topic_id: str, instructions: str | None) -> Proposal:
         existing_prereq_titles = [title_by_id[i] for i in existing_prereq_ids if i in title_by_id]
 
     prompt = build_expand_prompt(row["title"], row["summary"], existing_prereq_titles, instructions)
-    with llm_operation("expand"):
-        raw = await call_llm(prompt)
-    data = parse_llm_json_object(raw)
 
-    raw_topics = data.get("topics")
-    raw_deps = data.get("dependencies")
-    if not isinstance(raw_topics, list) or not raw_topics:
-        raise ValueError("LLM response did not include a non-empty 'topics' list")
-    if not isinstance(raw_deps, list):
-        raw_deps = []
+    with synapse_operation():
+        with llm_operation("expand"):
+            record = await call_llm_detailed(prompt)
+        data = parse_llm_json_object(record.text)
 
-    proposed_topics, proposed_dependencies, skipped_dependencies = build_topics_and_dependencies(
-        raw_topics,
-        raw_deps,
-        confidence_threshold=review_confidence_threshold(),
-        extra_title_to_id={row["title"].casefold(): topic_id},
-    )
+        raw_topics = data.get("topics")
+        raw_deps = data.get("dependencies")
+        if not isinstance(raw_topics, list) or not raw_topics:
+            raise ValueError("LLM response did not include a non-empty 'topics' list")
+        if not isinstance(raw_deps, list):
+            raw_deps = []
 
-    label = f"expand: {row['title']!r}"
-    if instructions and instructions.strip():
-        label += f" ({instructions.strip()[:80]!r})"
+        proposed_topics, proposed_dependencies, skipped_dependencies = build_topics_and_dependencies(
+            raw_topics,
+            raw_deps,
+            confidence_threshold=review_confidence_threshold(),
+            extra_title_to_id={row["title"].casefold(): topic_id},
+        )
 
-    proposal = Proposal(
-        id=uuid.uuid4().hex,
-        status="pending",
-        mode="expand",
-        source=label,
-        topics=proposed_topics,
-        dependencies=proposed_dependencies,
-        skipped_dependencies=skipped_dependencies,
-        created_at=datetime.now(timezone.utc),
-    )
-    save_proposal(proposal)
-    log_proposal_created(proposal)
+        label = f"expand: {row['title']!r}"
+        if instructions and instructions.strip():
+            label += f" ({instructions.strip()[:80]!r})"
+
+        meta = finalize_generation_meta({"generation_strategy": "expand"})
+        proposal = Proposal(
+            id=uuid.uuid4().hex,
+            status="pending",
+            mode="expand",
+            source=label,
+            topics=proposed_topics,
+            dependencies=proposed_dependencies,
+            skipped_dependencies=skipped_dependencies,
+            generation_meta=meta,
+            created_at=datetime.now(timezone.utc),
+        )
+        save_proposal(proposal)
+        log_proposal_created(proposal)
 
     logger.info(
         "Expand proposal %s built for topic %s: topics=%s dependencies=%s skipped=%s",

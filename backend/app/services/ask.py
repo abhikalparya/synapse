@@ -11,6 +11,7 @@ from app.models.artifact import ArtifactCreate
 from app.prompts.ask import build_ask_prompt
 from app.services.artifacts import create_artifact, list_artifacts_for_topic
 from app.services.llm import call_llm, llm_operation
+from app.services.operation_context import synapse_operation
 from app.services.settings import load_settings
 from app.services.topics import get_topic_by_id
 
@@ -48,16 +49,17 @@ async def answer_topic_question(topic_id: str, question: str) -> dict | None:
             if parsed is not None:
                 history.append(parsed)
 
-    prompt = build_ask_prompt(
-        topic_title=topic["title"],
-        topic_summary=topic["summary"],
-        resources=topic["resources"],
-        artifacts=artifacts,
-        question=question,
-        history=history,
-    )
-    with llm_operation("ask"):
-        answer = (await call_llm(prompt)).strip()
+    with synapse_operation():
+        prompt = build_ask_prompt(
+            topic_title=topic["title"],
+            topic_summary=topic["summary"],
+            resources=topic["resources"],
+            artifacts=artifacts,
+            question=question,
+            history=history,
+        )
+        with llm_operation("ask"):
+            answer = (await call_llm(prompt)).strip()
 
     log_title = question.strip()
     if len(log_title) > _QA_LOG_TITLE_MAX:

@@ -22,7 +22,8 @@ from app.models.proposal import (
     SkippedProposedDependency,
 )
 from app.prompts.reshape import build_reshape_prompt
-from app.services.llm import call_llm, llm_operation
+from app.services.llm import call_llm_detailed, llm_operation
+from app.services.operation_context import finalize_generation_meta, synapse_operation
 from app.services.proposal_common import parse_llm_json_object, review_confidence_threshold
 from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
@@ -115,113 +116,117 @@ async def run_reshape(*, topic_ids: list[str], instructions: str | None) -> Prop
         boundary_edges=boundary_edges,
         instructions=instructions,
     )
-    with llm_operation("reshape"):
-        raw = await call_llm(prompt)
-    data = parse_llm_json_object(raw)
 
-    # Only selected-topic titles resolve -- boundary/outside titles are deliberately never
-    # added here, so any attempt to reference one is rejected by the lookups below.
-    title_to_id: dict[str, str] = {r["title"].casefold(): r["id"] for r in selected_rows}
-    threshold = review_confidence_threshold()
+    with synapse_operation():
+        with llm_operation("reshape"):
+            record = await call_llm_detailed(prompt)
+        data = parse_llm_json_object(record.text)
 
-    proposed_topics: list[ProposedTopic] = []
-    for row in data.get("new_topics") or []:
-        if not isinstance(row, dict):
-            continue
-        title = str(row.get("title", "")).strip()
-        if not title:
-            continue
-        summary = str(row.get("summary", "")).strip()
-        try:
-            confidence = max(0.0, min(1.0, float(row.get("confidence", 0.5))))
-        except (TypeError, ValueError):
-            confidence = 0.5
-        temp_id = uuid.uuid4().hex
-        proposed_topics.append(
-            ProposedTopic(temp_id=temp_id, title=title, summary=summary, confidence=confidence, needs_review=confidence <= threshold),
-        )
-        title_to_id[title.casefold()] = temp_id
+        # Only selected-topic titles resolve -- boundary/outside titles are deliberately never
+        # added here, so any attempt to reference one is rejected by the lookups below.
+        title_to_id: dict[str, str] = {r["title"].casefold(): r["id"] for r in selected_rows}
+        threshold = review_confidence_threshold()
 
-    # Seed the in-memory cycle check with the selection's real, current internal edges --
-    # unlike ingest/expand, reshape's whole premise is an existing subgraph, so this check
-    # can (and should) be fully accurate rather than a best-effort local pre-filter.
-    accepted_dep_dicts: list[dict[str, str]] = [
-        {"from_topic_id": d["from_topic_id"], "to_topic_id": d["to_topic_id"]}
-        for d in all_deps
-        if d["from_topic_id"] in selected_set and d["to_topic_id"] in selected_set
-    ]
+        proposed_topics: list[ProposedTopic] = []
+        for row in data.get("new_topics") or []:
+            if not isinstance(row, dict):
+                continue
+            title = str(row.get("title", "")).strip()
+            if not title:
+                continue
+            summary = str(row.get("summary", "")).strip()
+            try:
+                confidence = max(0.0, min(1.0, float(row.get("confidence", 0.5))))
+            except (TypeError, ValueError):
+                confidence = 0.5
+            temp_id = uuid.uuid4().hex
+            proposed_topics.append(
+                ProposedTopic(temp_id=temp_id, title=title, summary=summary, confidence=confidence, needs_review=confidence <= threshold),
+            )
+            title_to_id[title.casefold()] = temp_id
 
-    proposed_dependencies, skipped_dependencies = filter_reshape_new_dependencies(
-        list(data.get("new_dependencies") or []),
-        title_to_id=title_to_id,
-        accepted_dep_dicts=accepted_dep_dicts,
-    )
+        # Seed the in-memory cycle check with the selection's real, current internal edges --
+        # unlike ingest/expand, reshape's whole premise is an existing subgraph, so this check
+        # can (and should) be fully accurate rather than a best-effort local pre-filter.
+        accepted_dep_dicts: list[dict[str, str]] = [
+            {"from_topic_id": d["from_topic_id"], "to_topic_id": d["to_topic_id"]}
+            for d in all_deps
+            if d["from_topic_id"] in selected_set and d["to_topic_id"] in selected_set
+        ]
 
-    errors: list[str] = []
-
-    removed_dependencies: list[ProposedDependencyRemoval] = []
-    for row in data.get("removed_dependencies") or []:
-        if not isinstance(row, dict):
-            continue
-        from_title = str(row.get("from", "")).strip()
-        to_title = str(row.get("to", "")).strip()
-        from_id = _resolve_title(from_title, title_to_id)
-        to_id = _resolve_title(to_title, title_to_id)
-        if from_id is None or to_id is None:
-            errors.append(f"removed_dependencies: unresolvable {from_title!r} -> {to_title!r}")
-            continue
-        removed_dependencies.append(
-            ProposedDependencyRemoval(from_topic_id=from_id, to_topic_id=to_id, reason=str(row.get("reason", "")).strip()),
+        proposed_dependencies, skipped_dependencies = filter_reshape_new_dependencies(
+            list(data.get("new_dependencies") or []),
+            title_to_id=title_to_id,
+            accepted_dep_dicts=accepted_dep_dicts,
         )
 
-    merges: list[ProposedMerge] = []
-    for row in data.get("merges") or []:
-        if not isinstance(row, dict):
-            continue
-        source_title = str(row.get("source", "")).strip()
-        target_title = str(row.get("target", "")).strip()
-        source_id = _resolve_title(source_title, title_to_id)
-        target_id = _resolve_title(target_title, title_to_id)
-        if source_id is None or target_id is None or source_id == target_id:
-            errors.append(f"merges: unresolvable or invalid {source_title!r} -> {target_title!r}")
-            continue
-        merges.append(ProposedMerge(source_topic_id=source_id, target_topic_id=target_id, reason=str(row.get("reason", "")).strip()))
+        errors: list[str] = []
 
-    edits: list[ProposedTopicEdit] = []
-    for row in data.get("edits") or []:
-        if not isinstance(row, dict):
-            continue
-        topic_title = str(row.get("topic", "")).strip()
-        topic_id = _resolve_title(topic_title, title_to_id)
-        new_summary = str(row.get("new_summary", "")).strip()
-        if topic_id is None or not new_summary:
-            errors.append(f"edits: unresolvable topic {topic_title!r} or empty new_summary")
-            continue
-        edits.append(ProposedTopicEdit(topic_id=topic_id, new_summary=new_summary, reason=str(row.get("reason", "")).strip()))
+        removed_dependencies: list[ProposedDependencyRemoval] = []
+        for row in data.get("removed_dependencies") or []:
+            if not isinstance(row, dict):
+                continue
+            from_title = str(row.get("from", "")).strip()
+            to_title = str(row.get("to", "")).strip()
+            from_id = _resolve_title(from_title, title_to_id)
+            to_id = _resolve_title(to_title, title_to_id)
+            if from_id is None or to_id is None:
+                errors.append(f"removed_dependencies: unresolvable {from_title!r} -> {to_title!r}")
+                continue
+            removed_dependencies.append(
+                ProposedDependencyRemoval(from_topic_id=from_id, to_topic_id=to_id, reason=str(row.get("reason", "")).strip()),
+            )
 
-    if not (proposed_topics or proposed_dependencies or removed_dependencies or merges or edits):
-        raise ValueError("LLM did not propose any well-formed restructuring operation for this selection")
+        merges: list[ProposedMerge] = []
+        for row in data.get("merges") or []:
+            if not isinstance(row, dict):
+                continue
+            source_title = str(row.get("source", "")).strip()
+            target_title = str(row.get("target", "")).strip()
+            source_id = _resolve_title(source_title, title_to_id)
+            target_id = _resolve_title(target_title, title_to_id)
+            if source_id is None or target_id is None or source_id == target_id:
+                errors.append(f"merges: unresolvable or invalid {source_title!r} -> {target_title!r}")
+                continue
+            merges.append(ProposedMerge(source_topic_id=source_id, target_topic_id=target_id, reason=str(row.get("reason", "")).strip()))
 
-    label = f"reshape: {len(topic_ids)} topic(s) selected"
-    if instructions and instructions.strip():
-        label += f" ({instructions.strip()[:80]!r})"
+        edits: list[ProposedTopicEdit] = []
+        for row in data.get("edits") or []:
+            if not isinstance(row, dict):
+                continue
+            topic_title = str(row.get("topic", "")).strip()
+            topic_id = _resolve_title(topic_title, title_to_id)
+            new_summary = str(row.get("new_summary", "")).strip()
+            if topic_id is None or not new_summary:
+                errors.append(f"edits: unresolvable topic {topic_title!r} or empty new_summary")
+                continue
+            edits.append(ProposedTopicEdit(topic_id=topic_id, new_summary=new_summary, reason=str(row.get("reason", "")).strip()))
 
-    proposal = Proposal(
-        id=uuid.uuid4().hex,
-        status="pending",
-        mode="reshape",
-        source=label,
-        topics=proposed_topics,
-        dependencies=proposed_dependencies,
-        removed_dependencies=removed_dependencies,
-        merges=merges,
-        edits=edits,
-        skipped_dependencies=skipped_dependencies,
-        errors=errors,
-        created_at=datetime.now(timezone.utc),
-    )
-    save_proposal(proposal)
-    log_proposal_created(proposal)
+        if not (proposed_topics or proposed_dependencies or removed_dependencies or merges or edits):
+            raise ValueError("LLM did not propose any well-formed restructuring operation for this selection")
+
+        label = f"reshape: {len(topic_ids)} topic(s) selected"
+        if instructions and instructions.strip():
+            label += f" ({instructions.strip()[:80]!r})"
+
+        meta = finalize_generation_meta({"generation_strategy": "reshape"})
+        proposal = Proposal(
+            id=uuid.uuid4().hex,
+            status="pending",
+            mode="reshape",
+            source=label,
+            topics=proposed_topics,
+            dependencies=proposed_dependencies,
+            removed_dependencies=removed_dependencies,
+            merges=merges,
+            edits=edits,
+            skipped_dependencies=skipped_dependencies,
+            errors=errors,
+            generation_meta=meta,
+            created_at=datetime.now(timezone.utc),
+        )
+        save_proposal(proposal)
+        log_proposal_created(proposal)
 
     logger.info(
         "Reshape proposal %s built: new_topics=%s new_deps=%s removed=%s merges=%s edits=%s skipped=%s",

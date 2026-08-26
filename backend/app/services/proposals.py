@@ -93,6 +93,26 @@ def load_proposal(proposal_id: str) -> Proposal | None:
             return None
 
 
+def find_applied_proposal_by_snapshot(snapshot_id: str) -> Proposal | None:
+    """Return the applied proposal tied to ``snapshot_id``, if exactly one exists."""
+    if not (snapshot_id or "").strip():
+        return None
+    with SessionLocal() as session:
+        rows = session.scalars(
+            select(ProposalRow).where(
+                ProposalRow.snapshot_id == snapshot_id,
+                ProposalRow.status == "applied",
+            )
+        ).all()
+    if len(rows) != 1:
+        return None
+    try:
+        return _proposal_row_to_model(rows[0])
+    except ValueError as exc:
+        logger.warning("Proposal for snapshot %s failed validation: %s", snapshot_id, exc)
+        return None
+
+
 def list_proposals(*, status: str | None = None) -> list[Proposal]:
     with SessionLocal() as session:
         stmt = select(ProposalRow).order_by(ProposalRow.created_at.desc())
