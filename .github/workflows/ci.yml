@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run tests
+        run: make test
+        env:
+          SYNAPSE_LOG_LLM_USAGE: "0"
+
+      - name: Run reliability benchmark
+        run: make eval-reliability
+        env:
+          SYNAPSE_LOG_LLM_USAGE: "0"
