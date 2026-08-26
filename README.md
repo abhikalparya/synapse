@@ -1,38 +1,42 @@
 # Synapse
 
-A directed dependency-graph learning tool: break a subject into topics, connect them
-with prerequisite edges, and study through the graph instead of a linear course.
+AI-assisted prerequisite learning graphs with deterministic DAG validation, human review, and transactional apply/rollback.
 
-## What it does
+## Problem
 
-- **Topic/dependency graph** — topics are nodes; a dependency edge means "this topic
-  requires that one first." The graph enforces a DAG (no cycles) and renders as a
-  force-directed layout with click-to-path prerequisite highlighting.
-- **AI operations, always reviewable** — four modes (`ingest` a goal/notes into new
-  topics, `expand` one topic into sub-topics, `audit` the graph for structural issues,
-  `reshape` a subgraph via merge/split/reorder) all produce a pending Proposal. Nothing
-  touches the graph until you explicitly apply it; every apply can be rolled back.
-- **Study loop** — per-topic status tracking, attached resources, and closure quizzes
-  that gate marking a topic complete.
-- **Zones & artifacts** — optional visual grouping regions for topics, and a place to
-  keep what you *produce* while studying (notes, snippets, summaries) separate from what
-  you *studied from*.
-- **In-session assistant** — ask a question scoped to the topic you're viewing; answers
-  are grounded in that topic's own summary/resources, never the whole graph, and never
-  propose a graph change themselves.
-- **Obsidian bridge** — import a vault (`.md` notes + `[[wikilinks]]`) into a reviewable
-  proposal, or export the graph (or a subgraph) back out as wikilinked `.md` files.
-- **Multi-provider LLM** — OpenAI, Gemini, or any OpenAI-compatible endpoint, selected
-  via one `.env` variable, no code changes.
-- **Workspace settings** — a persona prefix, a memory toggle for the assistant's
-  conversation history, and an extended-thinking nudge, applied to every LLM call.
-- **MCP bridge** — a read-only MCP server so external agents (Claude Desktop/Code,
-  Cursor) can query the graph and study progress directly.
+Learning prerequisite structures are usually implicit. Models invent topics freely, omit foundations, reverse edges, and create cycles. Synapse turns that into a **reviewable proposal**—never a silent graph mutation.
 
-## Stack
+## What Synapse does
 
-- **Backend:** FastAPI, SQLAlchemy + SQLite, Pydantic
-- **Frontend:** React, TypeScript, Vite, react-force-graph-2d
+- Generate a topic + prerequisite DAG from a learning goal (or notes)
+- Validate structure (cycles, unknown refs) before review
+- Apply only after explicit approval; every apply can be rolled back
+- Optionally use a **domain curriculum prior**: closed-world selection from a reviewed inventory
+
+## Architecture
+
+```mermaid
+flowchart TD
+  Goal[User learning goal] --> Resolve{Domain inventory\navailable?}
+  Resolve -->|Yes + opt-in prior| Prior[Domain curriculum prior\nclosed concept selection]
+  Resolve -->|No / baseline| Base[Baseline\njoint topics + deps]
+  Prior --> Deps[Dependency generation]
+  Base --> Deps
+  Deps --> Val[Deterministic DAG validation]
+  Val --> Prop[Pending proposal]
+  Prop --> Review{Human review}
+  Review -->|Apply| Tx[Transactional write]
+  Review -->|Discard| Drop[No graph change]
+  Tx --> RB[Rollback available]
+```
+
+### Baseline (production default)
+
+Goal → LLM proposal → DAG validation → proposal → review → apply / rollback
+
+### Domain curriculum prior (opt-in experimental)
+
+Goal → domain resolution → reviewed inventory → closed concept selection → dependency generation → DAG validation → proposal → review → apply / rollback
 
 ## Running it
 
@@ -41,45 +45,93 @@ with prerequisite edges, and study through the graph instead of a linear course.
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example .env   # set OPENAI_API_KEY (or another provider, see .env.example)
+cp ../.env.example .env   # set OPENAI_API_KEY (or another provider)
 uvicorn app.main:app --reload --port 8000
 
-# Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev   # http://localhost:5173, proxies API calls to :8000
+# Frontend
+cd frontend && npm install && npm run dev
 ```
 
-### MCP bridge (optional)
+Product ingest default is always **baseline**. Opt into domain prior explicitly:
 
 ```bash
-cd backend && python -m app.mcp_server
+# POST /ai/ingest
+# { "goal": "…", "generation_strategy": "domain_curriculum_prior", "curriculum_domain": "databases" }
 ```
 
-Point Claude Desktop/Code or Cursor at it with `cwd` set to `backend/`:
+## Evaluation (compact)
 
-```json
-{
-  "mcpServers": {
-    "synapse": {
-      "command": "python",
-      "args": ["-m", "app.mcp_server"],
-      "cwd": "/absolute/path/to/wiki-llm/backend"
-    }
-  }
-}
+| Experiment | Finding |
+| --- | --- |
+| Baseline evaluation | Systematic endpoint / missing-concept failures |
+| Concept-First | Rejected |
+| Open-ended coverage recovery | Rejected |
+| Representation alignment | Limited measurement-only gain |
+| Domain curriculum prior | Strong improvement on **supported** domains |
+| Edge classifier | Experimental; costly and domain-sensitive — **not promoted** |
+
+### Supported-domain results (mapped cases)
+
+| | Topic F1 | Required Edge F1 |
+| --- | ---: | ---: |
+| Baseline | ~0.518 | ~0.111 |
+| Domain prior | ~0.787 | ~0.181 |
+
+**33 / 40** quality cases currently have a reviewed domain inventory (82.5%). Unmapped cases fall back to baseline in product mode.
+
+### Reliability (adversarial suite)
+
+Validation catch / cycle prevention / transaction integrity / rollback = **1.00**.
+
+## Production decision
+
+| Mode | Status |
+| --- | --- |
+| **baseline** | **Production default** |
+| **domain_curriculum_prior** | Opt-in experimental |
+| **domain_prior_edge_classifier** | Experimental only |
+
+Why baseline stays default: full-dataset behavior must not depend on incomplete inventory coverage; prior adds latency/cost and only helps when a reviewed inventory exists.
+
+## Trade-offs
+
+- Domain prior needs reviewed inventories to expand coverage
+- Unsupported domains fall back to baseline (`fallback_reason` in metadata)
+- Quality is not uniform across domains
+- Edge classifier remains experimental (regressions + cost)
+
+## Curriculum inventories
+
+Frozen under `data/curriculum/`. Active versions include `databases_v2` and `data_engineering_v2`; other domains remain on v1.
+
+See:
+
+- [docs/project-status.md](docs/project-status.md) — current status and closed experiments
+- [docs/curriculum-inventory-guide.md](docs/curriculum-inventory-guide.md) — how to add a domain without gold leakage
+
+```bash
+cd backend
+python3 -m app.evaluation.runner --curriculum-inventory-check
+python3 -m app.evaluation.runner --domain-coverage-report
 ```
 
-## Layout
+## Evaluation methodology
 
-```
-backend/app/
-  routes/     FastAPI endpoints
-  services/   business logic (one per concern: topics, proposals, obsidian, llm, ...)
-  models/     Pydantic request/response schemas
-  db/         SQLAlchemy models + session
-  prompts/    LLM prompt builders
-frontend/src/
-  components/ KnowledgeGraph, NodeDetailsPanel, AiOperationsModal, SettingsPanel, ...
+40-case quality set · curated_alias matching · edge_calibrated scoring · multi-generation stability · failure attribution. Golden datasets: `data/eval/`. Local runs: `results/benchmarks/`. Reference evidence: `results/canonical/`. See `backend/app/evaluation/README.md`.
+
+```bash
+make test
+make eval-reliability   # no LLM
 ```
 
+## Demo (end-to-end)
+
+1. Start backend + frontend
+2. Open the AI ingest panel; enter a learning goal (leave strategy default = baseline)
+3. Review the pending proposal (topics + edges; skipped invalid edges listed)
+4. Apply → inspect the graph → rollback if desired
+5. Optional: repeat with `generation_strategy=domain_curriculum_prior` and `curriculum_domain=compiler_construction`
+
+## Stack
+
+FastAPI + SQLite · React + Vite · multi-provider LLM (OpenAI / Gemini / compatible)

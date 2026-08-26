@@ -95,8 +95,12 @@ review-ready graph in one call, instead of dozens of manual `POST /topics` +
   parsed to plain text and saved as a raw note. `POST /ingest` also accepts pasted raw text
   directly. All three return the note's basename, which `filenames` (below) references.
 - `POST /ai/ingest` — body is `{"goal": "...", "topics": ["...", ...], "filenames": ["..."]}`
-  (any combination; at least one non-empty). Returns a **pending Proposal** — see the next
-  section for what happens next. Nothing is written to the graph by this call alone.
+  (any combination; at least one non-empty). Optional product fields:
+  `generation_strategy` (`baseline` default, or opt-in `domain_curriculum_prior` /
+  experimental `domain_prior_edge_classifier`), `curriculum_domain`, `require_domain_prior`.
+  Returns a **pending Proposal** — see the next section for what happens next. Nothing is
+  written to the graph by this call alone. Closed experiments (Concept-First, coverage
+  recovery) are evaluation-only and are rejected by this endpoint.
 - **UI:** the sidebar's "+ AI operations" button opens a modal with mode tabs; the "Ingest"
   tab has a single free-text box for the goal (file/topic-dump inputs are reachable via the
   same endpoint but the current UI's ingest tab is goal-text-only).
@@ -137,7 +141,9 @@ button, because each has a genuinely different risk profile:
   summaries) run for free with no LLM call; a second pass asks an LLM to judge missing
   prerequisites and cycle-risk relationships. It returns a diagnostic `AuditReport`
   directly, never a `Proposal` — there is nothing to apply, by design, so audit is safe to
-  run at any time with zero chance of it mutating anything, even indirectly.
+  run at any time with zero chance of it mutating anything, even indirectly. If the LLM
+  pass fails, the API does not disguise a structural-only result as a full semantic audit:
+  `status` becomes `"partial"` and `semantic_analysis` is `"unavailable"`.
 - **Reshape** — the most invasive mode: split/merge/reorder an existing subgraph you
   select. It's the only mode that can propose *removing* an edge, *merging* two topics, or
   *editing* an existing summary — capabilities the other three deliberately don't have,
@@ -151,7 +157,12 @@ button, because each has a genuinely different risk profile:
   (the selected subgraph to restructure).
 - `POST /ai/audit` — no body. Returns `AuditReport` directly (`total_topics`, `findings`:
   each `{"type", "topic_ids", "detail"}` where `type` is one of `orphaned_topic`,
-  `duplicate_title`, `thin_topic`, `missing_prerequisite`, `cycle_risk`).
+  `duplicate_title`, `thin_topic`, `missing_prerequisite`, `cycle_risk`). Structural
+  checks always run. If the LLM semantic pass fails, the report is explicit about
+  degraded mode: `status` is `"partial"`, `semantic_analysis` is `"unavailable"`,
+  `structural_findings` lists the deterministic issues, and `findings` does **not**
+  pretend to include semantic analysis. A fully successful pass uses `status: "ok"`
+  and `semantic_analysis: "available"` (including when the model reports no semantic issues).
 - For ingest/expand/reshape, the response is a `Proposal`: `id`, `mode`, `source`, `topics`
   (each with a `confidence` score and `needs_review` flag for anything at or below the
   configured threshold), `dependencies`, and for reshape also `removed_dependencies`,

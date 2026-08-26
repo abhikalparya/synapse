@@ -1,0 +1,389 @@
+{
+  "timestamp": "2026-08-24T15:32:29.824621+00:00",
+  "benchmark_type": "reliability",
+  "dataset": "learning_graph_reliability_v1",
+  "dataset_version": "learning_graph_reliability_v1",
+  "model": "none",
+  "provider": "none",
+  "seed": 42,
+  "repetitions": 1,
+  "example_count": 12,
+  "metrics": {
+    "validation_catch_rate": 1.0,
+    "cycle_prevention_rate": 1.0,
+    "self_loop_prevention_rate": 1.0,
+    "invalid_reference_rejection_rate": 1.0,
+    "malformed_output_catch_rate": 1.0,
+    "transaction_integrity_rate": 1.0,
+    "rollback_correctness_rate": 1.0,
+    "n": 12.0,
+    "n_invalid_outputs": 10.0,
+    "n_caught": 10.0,
+    "n_cycle_attempts": 2.0,
+    "n_unknown_or_oos_refs": 3.0,
+    "n_transaction_failures": 1.0,
+    "n_rollback_attempts": 1.0
+  },
+  "failures": {},
+  "latency": {},
+  "cost": {
+    "note": "Reliability cases are deterministic and incur no LLM cost."
+  },
+  "cases": [
+    {
+      "id": "cycle_abc_001",
+      "kind": "cycle",
+      "description": "A requires B, B requires C, generated C requires A (closes a cycle).",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_retained_invalid": true,
+      "direct_parse_ok": true,
+      "synapse_parse_ok": true,
+      "direct_error": null,
+      "synapse_error": null,
+      "direct_topics": [
+        "A",
+        "B",
+        "C"
+      ],
+      "synapse_topics": [
+        "A",
+        "B",
+        "C"
+      ],
+      "direct_dependencies": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "C",
+          "A"
+        ]
+      ],
+      "synapse_dependencies": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "B",
+          "C"
+        ]
+      ],
+      "synapse_skipped": [
+        {
+          "from_title": "C",
+          "to_title": "A",
+          "reason": "would create a cycle with other proposed dependencies"
+        }
+      ],
+      "direct_edge_count": 3,
+      "synapse_edge_count": 2
+    },
+    {
+      "id": "cycle_ab_001",
+      "kind": "cycle",
+      "description": "Mutual pair A requires B and B requires A.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_retained_invalid": true,
+      "direct_parse_ok": true,
+      "synapse_parse_ok": true,
+      "direct_error": null,
+      "synapse_error": null,
+      "direct_topics": [
+        "A",
+        "B"
+      ],
+      "synapse_topics": [
+        "A",
+        "B"
+      ],
+      "direct_dependencies": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "B",
+          "A"
+        ]
+      ],
+      "synapse_dependencies": [
+        [
+          "A",
+          "B"
+        ]
+      ],
+      "synapse_skipped": [
+        {
+          "from_title": "B",
+          "to_title": "A",
+          "reason": "would create a cycle with other proposed dependencies"
+        }
+      ],
+      "direct_edge_count": 2,
+      "synapse_edge_count": 1
+    },
+    {
+      "id": "self_loop_001",
+      "kind": "self_loop",
+      "description": "Generated A requires A.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_retained_invalid": true,
+      "direct_parse_ok": true,
+      "synapse_parse_ok": true,
+      "direct_error": null,
+      "synapse_error": null,
+      "direct_topics": [
+        "A",
+        "B"
+      ],
+      "synapse_topics": [
+        "A",
+        "B"
+      ],
+      "direct_dependencies": [
+        [
+          "B",
+          "A"
+        ],
+        [
+          "A",
+          "A"
+        ]
+      ],
+      "synapse_dependencies": [
+        [
+          "B",
+          "A"
+        ]
+      ],
+      "synapse_skipped": [
+        {
+          "from_title": "A",
+          "to_title": "A",
+          "reason": "would create a cycle with other proposed dependencies"
+        }
+      ],
+      "direct_edge_count": 2,
+      "synapse_edge_count": 1
+    },
+    {
+      "id": "unknown_ref_001",
+      "kind": "unknown_reference",
+      "description": "Dependency names a topic that does not exist.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_retained_invalid": true,
+      "invalid_references_generated": 1,
+      "invalid_references_rejected": 1,
+      "direct_parse_ok": true,
+      "synapse_parse_ok": true,
+      "direct_error": null,
+      "synapse_error": null,
+      "direct_topics": [
+        "A",
+        "B"
+      ],
+      "synapse_topics": [
+        "A",
+        "B"
+      ],
+      "direct_dependencies": [
+        [
+          "B",
+          "A"
+        ],
+        [
+          "B",
+          "Ghost Topic"
+        ]
+      ],
+      "synapse_dependencies": [
+        [
+          "B",
+          "A"
+        ]
+      ],
+      "synapse_skipped": [
+        {
+          "from_title": "B",
+          "to_title": "Ghost Topic",
+          "reason": "unknown topic reference"
+        }
+      ],
+      "direct_edge_count": 2,
+      "synapse_edge_count": 1
+    },
+    {
+      "id": "unknown_ref_both_001",
+      "kind": "unknown_reference",
+      "description": "Both endpoints are unknown titles.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_retained_invalid": true,
+      "invalid_references_generated": 1,
+      "invalid_references_rejected": 1,
+      "direct_parse_ok": true,
+      "synapse_parse_ok": true,
+      "direct_error": null,
+      "synapse_error": null,
+      "direct_topics": [
+        "A"
+      ],
+      "synapse_topics": [
+        "A"
+      ],
+      "direct_dependencies": [
+        [
+          "MissingFrom",
+          "MissingTo"
+        ]
+      ],
+      "synapse_dependencies": [],
+      "synapse_skipped": [
+        {
+          "from_title": "MissingFrom",
+          "to_title": "MissingTo",
+          "reason": "unknown topic reference"
+        }
+      ],
+      "direct_edge_count": 1,
+      "synapse_edge_count": 0
+    },
+    {
+      "id": "reshape_oos_001",
+      "kind": "out_of_scope_reshape",
+      "description": "Reshape of {A,B} tries to reference outside topic Z.",
+      "ok": true,
+      "synapse_caught": true,
+      "accepted": 1,
+      "skipped": [
+        {
+          "from_title": "B",
+          "to_title": "Z",
+          "reason": "unknown or out-of-scope topic reference"
+        }
+      ],
+      "invalid_references_generated": 1,
+      "invalid_references_rejected": 1
+    },
+    {
+      "id": "malformed_json_001",
+      "kind": "malformed_json",
+      "description": "LLM output is not valid JSON.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_parse_ok": false,
+      "synapse_parse_ok": false,
+      "synapse_error": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)",
+      "direct_error": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    },
+    {
+      "id": "malformed_missing_topics_001",
+      "kind": "missing_fields",
+      "description": "JSON object with no topics list.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_parse_ok": false,
+      "synapse_parse_ok": false,
+      "synapse_error": "LLM response did not include a non-empty 'topics' list",
+      "direct_error": "LLM response did not include a non-empty 'topics' list"
+    },
+    {
+      "id": "malformed_empty_topics_001",
+      "kind": "missing_fields",
+      "description": "Empty topics list.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_parse_ok": false,
+      "synapse_parse_ok": false,
+      "synapse_error": "LLM response did not include a non-empty 'topics' list",
+      "direct_error": "LLM response did not include a non-empty 'topics' list"
+    },
+    {
+      "id": "malformed_dep_types_001",
+      "kind": "malformed_types",
+      "description": "Dependency endpoints are non-strings; topics are well-formed.",
+      "ok": true,
+      "synapse_caught": true,
+      "direct_parse_ok": true,
+      "synapse_parse_ok": true,
+      "direct_dependencies": [
+        [
+          "1",
+          "2"
+        ]
+      ],
+      "synapse_dependencies": []
+    },
+    {
+      "id": "transaction_merge_unknown_001",
+      "kind": "transaction_failure",
+      "description": "Apply creates a topic then merges an unknown source; the transaction must abort.",
+      "ok": true,
+      "raised": true,
+      "error": "Unknown source_topic_id: does-not-exist",
+      "leaked_new_topic": false,
+      "before": {
+        "topics": [
+          "Keep"
+        ],
+        "dependencies": []
+      },
+      "after": {
+        "topics": [
+          "Keep"
+        ],
+        "dependencies": []
+      }
+    },
+    {
+      "id": "rollback_exact_001",
+      "kind": "rollback",
+      "description": "Apply a valid ingest proposal then restore the pre-apply snapshot.",
+      "ok": true,
+      "before": {
+        "topics": [
+          "Keep",
+          "Root"
+        ],
+        "dependencies": []
+      },
+      "mid": {
+        "topics": [
+          "Child",
+          "Keep",
+          "Root"
+        ],
+        "dependencies": [
+          [
+            "Child",
+            "Root"
+          ]
+        ]
+      },
+      "after": {
+        "topics": [
+          "Keep",
+          "Root"
+        ],
+        "dependencies": []
+      },
+      "snapshot_id": "20260824_153229_2bbddadd"
+    }
+  ],
+  "notes": [
+    "Direct vs Synapse use production parse_direct_dependency_graph vs build_topics_and_dependencies.",
+    "Reshape out-of-scope uses production filter_reshape_new_dependencies.",
+    "Transaction/rollback use production apply_proposal and restore_snapshot on an isolated DB.",
+    "No LLM calls. Failures are adversarial fixtures, not random model errors."
+  ]
+}

@@ -25,9 +25,9 @@ coverage.xml
 frontend/node_modules/
 frontend/dist/
 
-# Claude Code local tooling config (browser-preview launch config, skills) -- not part
-# of the app, personal to this working setup
+# Claude Code / Cursor local tooling
 .claude/
+.cursor/
 
 # OS and editors
 .DS_Store
@@ -43,17 +43,26 @@ backend/raw_notes/*
 backend/wiki_pages/*
 !backend/wiki_pages/.gitkeep
 
-# Local runtime data (topic/dependency/proposal store, pre-SQLite JSON and the SQLite
-# db + snapshots alike — personal / bulky, never shared state)
+# Local runtime data (topic/dependency/proposal store)
 backend/topics/
 backend/proposals/
 backend/data/*
 !backend/data/.gitkeep
+
+# Generated evaluation output (see results/README.md; canonical/ is tracked)
+results/benchmarks/
+results/failure_analysis/
+results/curriculum/
+results/local/
 
 # Logs and misc
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Temporary local scratch
+tmp/
+*.tmp
 
 .cursorignore
