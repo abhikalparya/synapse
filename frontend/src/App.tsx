@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import { AiOperationsModal } from "./components/AiOperationsModal";
+import { AppShell, type WorkspaceView } from "./components/AppShell";
 import { GraphSearchBar } from "./components/GraphSearchBar";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { NodeDetailsPanel } from "./components/NodeDetailsPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { Sidebar } from "./components/Sidebar";
+import { HomeWorkspace, LearnWorkspace, ReviewWorkspace } from "./components/WorkspaceViews";
 import { linkKey, prepareGraphData } from "./graphUtils";
 import type { ApplyResponse, GraphData, GraphNode, PathResponse, RollbackResponse, StatsResponse, Zone } from "./types";
 
@@ -30,6 +31,7 @@ const NO_IDS: readonly string[] = [];
 const NO_USED_IDS = new Set<string>();
 
 export default function App() {
+  const [activeView, setActiveView] = useState<WorkspaceView>("explore");
   const [graphData, setGraphData] = useState<GraphData>(() => prepareGraphData(emptyGraph()));
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [graphLoading, setGraphLoading] = useState(true);
@@ -129,7 +131,7 @@ export default function App() {
     ro.observe(el);
     setGraphSize({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
-  }, []);
+  }, [activeView]);
 
   useEffect(() => {
     const id = selectedNode?.id;
@@ -233,11 +235,23 @@ export default function App() {
     (id: string) => {
       const n = resolveNodeById(id);
       if (n) {
+        setActiveView("explore");
         setSelectedNode(n);
         bumpFocusCamera(n.id);
       } else {
         setSelectedNode(null);
       }
+    },
+    [bumpFocusCamera, resolveNodeById],
+  );
+
+  const openTopicInExplore = useCallback(
+    (id: string) => {
+      const n = resolveNodeById(id);
+      if (!n) return;
+      setActiveView("explore");
+      setSelectedNode(n);
+      bumpFocusCamera(n.id);
     },
     [bumpFocusCamera, resolveNodeById],
   );
@@ -249,94 +263,112 @@ export default function App() {
   const canvasLoadingEmpty = graphLoading && !hasNodes && !graphError;
 
   return (
-    <div className="app">
+    <>
       {toast ? (
         <div className="app__toast" role="status">
           {toast}
         </div>
       ) : null}
-      <Sidebar
-        stats={stats}
-        loading={statsLoading}
+      <AppShell
+        activeView={activeView}
+        onNavigate={setActiveView}
         onPickNode={handlePickNode}
         onOpenAiOperations={() => setAiModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onUndoLastChange={() => void handleUndoLastChange()}
         undoBusy={undoBusy}
+        stats={stats}
+        statsLoading={statsLoading}
         zones={zones}
         onCreateZone={handleCreateZone}
-      />
-
-      <main className="app__main">
-        <header className="app__header">
-          <div className="app__header-lead">
-            <h1 className="app__title">Dependency graph</h1>
-            <p className="app__subtitle">Topics · directed prerequisites</p>
-          </div>
-          {hasNodes ? (
-            <GraphSearchBar nodes={graphData.nodes} onNavigateToNode={navigateToNode} />
-          ) : null}
-          {graphLoading ? <span className="badge badge--pulse">Syncing…</span> : null}
-        </header>
-
-        <div className="app__canvas" ref={graphAreaRef}>
-          {graphError ? <div className="app__error">{graphError}</div> : null}
-          {canvasLoadingEmpty ? (
-            <div className="app__canvas-loading" aria-live="polite">
-              <span className="app__canvas-loading__dot" aria-hidden />
-              Syncing dependency graph…
-            </div>
-          ) : null}
-          {emptyBrain ? (
-            <div className="app__empty app__empty--brain">
-              <div className="app__empty-icon" aria-hidden>
-                <svg viewBox="0 0 64 64" width="56" height="56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="20" cy="22" r="5" stroke="currentColor" strokeWidth="2" opacity="0.9" />
-                  <circle cx="44" cy="18" r="4" stroke="currentColor" strokeWidth="2" opacity="0.75" />
-                  <circle cx="38" cy="42" r="5" stroke="currentColor" strokeWidth="2" opacity="0.85" />
-                  <circle cx="14" cy="44" r="3.5" stroke="currentColor" strokeWidth="2" opacity="0.65" />
-                  <path
-                    d="M23 24c6 4 10 2 14-4M24 28c4 8 8 10 12 8M20 40c6-2 10 0 14 4"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    opacity="0.45"
-                  />
-                </svg>
-              </div>
-              <p className="app__empty-message">No topics yet. Create some via the API to see the graph.</p>
-            </div>
-          ) : null}
-          {showKnowledgeGraph ? (
-            <KnowledgeGraph
-              data={graphData}
-              width={graphSize.w}
-              height={graphSize.h}
-              selectedId={selectedNode?.id ?? null}
-              onSelectNode={setSelectedNode}
-              queryUsedIds={NO_USED_IDS}
-              queryUpdatedId={null}
-              reheatToken={reheatToken}
-              onLayoutSnapshot={captureLayout}
-              birthNodeIds={NO_IDS}
-              queryPulseIds={NO_IDS}
-              focusCameraRequest={focusCameraRequest}
-              pathNodeIds={pathNodeIds}
-              pathLinkKeys={pathLinkKeys}
+        contextPanel={
+          activeView === "explore" && selectedNode ? (
+            <NodeDetailsPanel
+              graphData={graphData}
+              node={selectedNode}
+              onClose={() => setSelectedNode(null)}
+              onNavigateToNode={navigateToNode}
+              onTopicChanged={() => void handleTopicChanged()}
               zones={zones}
             />
+          ) : undefined
+        }
+      >
+        <main className="app__main">
+          {activeView === "home" ? (
+            <HomeWorkspace
+              stats={stats}
+              loading={statsLoading}
+              graphNodes={graphData.nodes}
+              onOpenTopic={openTopicInExplore}
+            />
           ) : null}
-        </div>
-      </main>
+          {activeView === "learn" ? <LearnWorkspace nodes={graphData.nodes} onOpenTopic={openTopicInExplore} /> : null}
+          {activeView === "review" ? <ReviewWorkspace onOpenAiOperations={() => setAiModalOpen(true)} /> : null}
+          {activeView === "explore" ? (
+            <>
+              <header className="app__header">
+                <div className="app__header-lead">
+                  <p className="app__eyebrow">Explore</p>
+                  <h1 className="app__title">Dependency graph</h1>
+                  <p className="app__subtitle">Topics · directed prerequisites</p>
+                </div>
+                {hasNodes ? <GraphSearchBar nodes={graphData.nodes} onNavigateToNode={navigateToNode} /> : null}
+                {graphLoading ? <span className="badge badge--pulse">Syncing…</span> : null}
+              </header>
 
-      <NodeDetailsPanel
-        graphData={graphData}
-        node={selectedNode}
-        onClose={() => setSelectedNode(null)}
-        onNavigateToNode={navigateToNode}
-        onTopicChanged={() => void handleTopicChanged()}
-        zones={zones}
-      />
+              <div className="app__canvas" ref={graphAreaRef}>
+                {graphError ? <div className="app__error">{graphError}</div> : null}
+                {canvasLoadingEmpty ? (
+                  <div className="app__canvas-loading" aria-live="polite">
+                    <span className="app__canvas-loading__dot" aria-hidden />
+                    Syncing dependency graph…
+                  </div>
+                ) : null}
+                {emptyBrain ? (
+                  <div className="app__empty app__empty--brain">
+                    <div className="app__empty-icon" aria-hidden>
+                      <svg viewBox="0 0 64 64" width="56" height="56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="22" r="5" stroke="currentColor" strokeWidth="2" opacity="0.9" />
+                        <circle cx="44" cy="18" r="4" stroke="currentColor" strokeWidth="2" opacity="0.75" />
+                        <circle cx="38" cy="42" r="5" stroke="currentColor" strokeWidth="2" opacity="0.85" />
+                        <circle cx="14" cy="44" r="3.5" stroke="currentColor" strokeWidth="2" opacity="0.65" />
+                        <path
+                          d="M23 24c6 4 10 2 14-4M24 28c4 8 8 10 12 8M20 40c6-2 10 0 14 4"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          opacity="0.45"
+                        />
+                      </svg>
+                    </div>
+                    <p className="app__empty-message">No topics yet. Use Add knowledge to create your first graph.</p>
+                  </div>
+                ) : null}
+                {showKnowledgeGraph ? (
+                  <KnowledgeGraph
+                    data={graphData}
+                    width={graphSize.w}
+                    height={graphSize.h}
+                    selectedId={selectedNode?.id ?? null}
+                    onSelectNode={setSelectedNode}
+                    queryUsedIds={NO_USED_IDS}
+                    queryUpdatedId={null}
+                    reheatToken={reheatToken}
+                    onLayoutSnapshot={captureLayout}
+                    birthNodeIds={NO_IDS}
+                    queryPulseIds={NO_IDS}
+                    focusCameraRequest={focusCameraRequest}
+                    pathNodeIds={pathNodeIds}
+                    pathLinkKeys={pathLinkKeys}
+                    zones={zones}
+                  />
+                ) : null}
+              </div>
+            </>
+          ) : null}
+        </main>
+      </AppShell>
 
       <AiOperationsModal
         open={aiModalOpen}
@@ -346,6 +378,6 @@ export default function App() {
       />
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-    </div>
+    </>
   );
 }

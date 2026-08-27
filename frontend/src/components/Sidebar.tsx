@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from "react";
+import type { WorkspaceView } from "./AppShell";
 import type { RecentNode, StatsResponse, Zone } from "../types";
 
 type Props = {
+  activeView: WorkspaceView;
+  onNavigate: (view: WorkspaceView) => void;
   stats: StatsResponse | null;
   loading: boolean;
   onPickNode: (id: string) => void;
@@ -22,6 +25,8 @@ const STATUS_LABEL: Record<RecentNode["status"], string> = {
 const DEFAULT_ZONE_COLOR = "#8b5cf6";
 
 export function Sidebar({
+  activeView,
+  onNavigate,
   stats,
   loading,
   onPickNode,
@@ -61,8 +66,27 @@ export function Sidebar({
         </div>
       </div>
 
+      <nav className="sidebar__nav" aria-label="Primary navigation">
+        {([
+          ["home", "Home"],
+          ["learn", "Learn"],
+          ["explore", "Explore"],
+          ["review", "Review"],
+        ] as const).map(([view, label]) => (
+          <button
+            type="button"
+            key={view}
+            className={`sidebar__nav-item${activeView === view ? " sidebar__nav-item--active" : ""}`}
+            onClick={() => onNavigate(view)}
+            aria-current={activeView === view ? "page" : undefined}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
       <button type="button" className="sidebar__add-note" onClick={onOpenAiOperations}>
-        + AI operations
+        + Add knowledge
       </button>
       <button type="button" className="sidebar__undo" onClick={onUndoLastChange} disabled={undoBusy}>
         {undoBusy ? "Undoing…" : "Undo last change"}
