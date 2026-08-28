@@ -15,10 +15,22 @@ from sqlalchemy.orm import Session
 from app.db.models import DependencyRow, ResourceRow, TopicRow
 from app.db.session import SessionLocal
 from app.models.topic import Dependency, DependencyCreate, ResourceCreate, Topic, TopicCreate
+from app.services.topic_identity import canonical_topic_title
 
 
 class DependencyCycleError(ValueError):
     """Raised when adding a dependency would introduce a cycle (including self-loops)."""
+
+
+class TopicIdentityConflictError(ValueError):
+    """Raised when a topic's canonical identity is already present in the graph."""
+
+    def __init__(self, *, existing_id: str, existing_title: str) -> None:
+        self.existing_id = existing_id
+        self.existing_title = existing_title
+        super().__init__(
+            f"Topic identity already exists as {existing_title!r} ({existing_id})"
+        )
 
 
 def _topic_row_to_dict(row: TopicRow) -> dict[str, Any]:
@@ -60,11 +72,27 @@ def get_topic_by_id(topic_id: str) -> dict | None:
 
 def _create_topic_in_session(session: Session, data: TopicCreate) -> TopicRow:
     """Insert a topic within an existing transaction; the caller controls commit/rollback."""
+    canonical_title = canonical_topic_title(data.title)
+    if not canonical_title:
+        raise ValueError("Topic title must contain at least one letter or number")
+
+    existing = session.scalar(
+        select(TopicRow)
+        .where(TopicRow.canonical_title == canonical_title)
+        .order_by(TopicRow.created_at, TopicRow.id)
+    )
+    if existing is not None:
+        raise TopicIdentityConflictError(
+            existing_id=existing.id,
+            existing_title=existing.title,
+        )
+
     now = datetime.now(timezone.utc)
     topic = Topic(title=data.title.strip(), summary=data.summary.strip(), status=data.status)
     row = TopicRow(
         id=topic.id,
         title=topic.title,
+        canonical_title=canonical_title,
         summary=topic.summary,
         status=topic.status,
         quiz_passed=False,

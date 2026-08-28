@@ -126,7 +126,8 @@ async def _run_ingest_baseline(
     source_label: str,
     generation_meta: dict | None = None,
 ) -> Proposal:
-    known_titles = sorted({str(r.get("title", "")).strip() for r in load_all_topics() if r.get("title")})
+    existing_topics = load_all_topics()
+    known_titles = sorted({str(r.get("title", "")).strip() for r in existing_topics if r.get("title")})
     prompt = build_ingest_prompt(source_text, known_topic_titles=known_titles)
     with llm_operation("ingest"):
         record = await call_llm_detailed(prompt)
@@ -144,6 +145,7 @@ async def _run_ingest_baseline(
         raw_topics,
         raw_deps,
         confidence_threshold=review_confidence_threshold(),
+        existing_topics=existing_topics,
     )
 
     meta = finalize_generation_meta(generation_meta or {"generation_strategy": "baseline"})
@@ -241,6 +243,7 @@ async def _run_ingest_domain_curriculum_prior(
         raw_topics,
         raw_deps,
         confidence_threshold=review_confidence_threshold(),
+        existing_topics=load_all_topics(),
     )
     if result.skipped_dependencies and not skipped_dependencies:
         skipped_dependencies = list(result.skipped_dependencies)
@@ -347,6 +350,7 @@ async def _run_ingest_domain_prior_edge_classifier(
         raw_topics,
         raw_deps,
         confidence_threshold=review_confidence_threshold(),
+        existing_topics=load_all_topics(),
     )
     if result.skipped_dependencies and not skipped_dependencies:
         skipped_dependencies = list(result.skipped_dependencies)

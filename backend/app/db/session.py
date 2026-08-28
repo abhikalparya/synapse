@@ -5,12 +5,16 @@ step to remember.
 """
 
 import os
+import logging
 from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db.models import Base
+from app.services.topic_identity import canonical_topic_title
+
+logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = _PROJECT_ROOT / "data"
@@ -39,6 +43,72 @@ def _enable_foreign_keys(dbapi_connection, _connection_record) -> None:
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 Base.metadata.create_all(engine)
+
+
+def ensure_topic_identity_schema(target_engine=engine) -> None:
+    """Add and backfill topic identity without failing on legacy collisions.
+
+    A unique index is created only when all existing canonical values are
+    unique. Existing collisions are reported and left untouched for the later
+    reviewable cleanup phase.
+    """
+    with target_engine.begin() as connection:
+        columns = {row[1] for row in connection.execute(text("PRAGMA table_info(topics)"))}
+        if not columns:
+            return
+        if "canonical_title" not in columns:
+            connection.execute(
+                text("ALTER TABLE topics ADD COLUMN canonical_title VARCHAR(500)")
+            )
+
+        rows = connection.execute(text("SELECT id, title FROM topics")).all()
+        for topic_id, title in rows:
+            connection.execute(
+                text("UPDATE topics SET canonical_title = :canonical_title WHERE id = :topic_id"),
+                {
+                    "topic_id": topic_id,
+                    "canonical_title": canonical_topic_title(str(title or "")),
+                },
+            )
+
+        collisions = connection.execute(
+            text(
+                """
+                SELECT canonical_title, COUNT(*) AS count
+                FROM topics
+                WHERE canonical_title IS NOT NULL AND canonical_title <> ''
+                GROUP BY canonical_title
+                HAVING COUNT(*) > 1
+                """
+            )
+        ).all()
+        blank_titles = connection.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM topics
+                WHERE canonical_title IS NULL OR canonical_title = ''
+                """
+            )
+        ).scalar_one()
+
+        if collisions or blank_titles:
+            logger.warning(
+                "Skipping unique topic identity index: %s collision group(s), %s blank identity row(s)",
+                len(collisions),
+                blank_titles,
+            )
+            return
+
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_topics_canonical_title "
+                "ON topics (canonical_title)"
+            )
+        )
+
+
+ensure_topic_identity_schema()
 
 
 def ensure_proposal_generation_meta_column() -> None:

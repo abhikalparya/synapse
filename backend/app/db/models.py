@@ -53,6 +53,7 @@ class TopicRow(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     title: Mapped[str] = mapped_column(String(500), default="")
+    canonical_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     summary: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(20), default="not_started")
     quiz_passed: Mapped[bool] = mapped_column(Boolean, default=False)

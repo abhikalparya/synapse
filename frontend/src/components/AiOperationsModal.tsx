@@ -1,5 +1,6 @@
 import { useCallback, useId, useState, type FormEvent } from "react";
 import type { ApplyResponse, AuditReport, GraphNode, Proposal } from "../types";
+import { ProposalDetails } from "./ProposalDetails";
 
 type Mode = "ingest" | "expand" | "audit" | "reshape" | "obsidian";
 
@@ -15,8 +16,10 @@ type Props = {
   open: boolean;
   onClose: () => void;
   nodes: GraphNode[];
-  /** Called after a successful apply so the caller can refresh the graph/stats. */
-  onApplied: (result: ApplyResponse) => void;
+  /** Called after a successful apply so the caller can refresh persisted workspace state. */
+  onApplied: (result: ApplyResponse) => Promise<void> | void;
+  /** Called after a successful discard so the caller can refresh persisted workspace state. */
+  onDiscarded: () => Promise<void> | void;
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -35,13 +38,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
-function confidenceTier(confidence: number): "high" | "medium" | "low" {
-  if (confidence >= 0.8) return "high";
-  if (confidence >= 0.6) return "medium";
-  return "low";
-}
-
-export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
+export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded }: Props) {
   const idBase = useId();
   const [mode, setMode] = useState<Mode>("ingest");
 
@@ -193,7 +190,7 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposal_id: proposal.id }),
       });
-      onApplied(result);
+      await onApplied(result);
       resetAll();
       onClose();
     } catch (err) {
@@ -212,6 +209,7 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposal_id: proposal.id }),
       });
+      await onDiscarded();
       setProposal(null);
       setError(null);
     } catch (err) {
@@ -233,8 +231,8 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
   if (!open) return null;
 
   const titleById = new Map<string, string>([
-    ...(proposal?.topics.map((t) => [t.temp_id, t.title] as const) ?? []),
-    ...nodes.map((n) => [n.id, n.title ?? n.id] as const),
+    ...(proposal?.topics.map((topic) => [topic.temp_id, topic.title] as const) ?? []),
+    ...nodes.map((node) => [node.id, node.title ?? node.id] as const),
   ]);
   const resolveTitle = (id: string) => titleById.get(id) ?? id;
 
@@ -470,130 +468,14 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied }: Props) {
           ) : null}
 
           {proposal ? (
-            <>
-              <p className="review-source">
-                {MODE_LABEL[proposal.mode]} proposal from {proposal.source}. Nothing is saved until you apply.
-              </p>
-
-              {proposal.topics.length > 0 ? (
-                <div className="review-section">
-                  <h4>New topics ({proposal.topics.length})</h4>
-                  <div className="review-list">
-                    {proposal.topics.map((t) => (
-                      <div key={t.temp_id} className={`review-topic${t.needs_review ? " review-topic--needs-review" : ""}`}>
-                        <div>
-                          <p className="review-topic__title">{t.title}</p>
-                          {t.summary ? <p className="review-topic__summary">{t.summary}</p> : null}
-                        </div>
-                        <span className={`confidence-badge confidence-badge--${confidenceTier(t.confidence)}`}>
-                          {t.needs_review ? "needs review · " : ""}
-                          {Math.round(t.confidence * 100)}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {proposal.dependencies.length > 0 ? (
-                <div className="review-section">
-                  <h4>New dependencies ({proposal.dependencies.length})</h4>
-                  <div className="review-list">
-                    {proposal.dependencies.map((d, i) => (
-                      <div className="review-dep" key={`${d.from_temp_id}-${d.to_temp_id}-${i}`}>
-                        {resolveTitle(d.from_temp_id)}
-                        <span className="review-dep__arrow">requires →</span>
-                        {resolveTitle(d.to_temp_id)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {proposal.removed_dependencies.length > 0 ? (
-                <div className="review-section">
-                  <h4>Removed dependencies ({proposal.removed_dependencies.length})</h4>
-                  <div className="review-list">
-                    {proposal.removed_dependencies.map((d, i) => (
-                      <div className="review-dep" key={`${d.from_topic_id}-${d.to_topic_id}-${i}`}>
-                        {resolveTitle(d.from_topic_id)}
-                        <span className="review-dep__arrow">no longer requires →</span>
-                        {resolveTitle(d.to_topic_id)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {proposal.merges.length > 0 ? (
-                <div className="review-section">
-                  <h4>Merges ({proposal.merges.length})</h4>
-                  <div className="review-list">
-                    {proposal.merges.map((m, i) => (
-                      <div className="review-dep" key={`${m.source_topic_id}-${m.target_topic_id}-${i}`}>
-                        {resolveTitle(m.source_topic_id)}
-                        <span className="review-dep__arrow">merges into →</span>
-                        {resolveTitle(m.target_topic_id)}
-                        {m.reason ? <span className="review-dep__reason"> -- {m.reason}</span> : null}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {proposal.edits.length > 0 ? (
-                <div className="review-section">
-                  <h4>Edits ({proposal.edits.length})</h4>
-                  <div className="review-list">
-                    {proposal.edits.map((e, i) => (
-                      <div className="review-topic" key={`${e.topic_id}-${i}`}>
-                        <div>
-                          <p className="review-topic__title">{resolveTitle(e.topic_id)}</p>
-                          <p className="review-topic__summary">{e.new_summary}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {proposal.skipped_dependencies.length > 0 ? (
-                <div className="review-section">
-                  <h4>Skipped dependencies ({proposal.skipped_dependencies.length})</h4>
-                  <div className="review-list">
-                    {proposal.skipped_dependencies.map((s, i) => (
-                      <div className="review-skipped" key={`${s.from_title}-${s.to_title}-${i}`}>
-                        {s.from_title} → {s.to_title}: {s.reason}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {proposal.errors.length > 0 ? (
-                <div className="review-section">
-                  <h4>Errors ({proposal.errors.length})</h4>
-                  <div className="review-list">
-                    {proposal.errors.map((e, i) => (
-                      <div className="review-skipped" key={i}>
-                        {e}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {error ? <p className="modal__error">{error}</p> : null}
-
-              <div className="modal__actions">
-                <button type="button" className="modal__btn modal__btn--ghost" onClick={handleDiscard} disabled={busy}>
-                  Discard
-                </button>
-                <button type="button" className="modal__btn modal__btn--primary" onClick={handleApply} disabled={busy}>
-                  {busy ? "Applying…" : "Apply"}
-                </button>
-              </div>
-            </>
+            <ProposalDetails
+              proposal={proposal}
+              nodes={nodes}
+              busy={busy}
+              error={error}
+              onApply={() => void handleApply()}
+              onDiscard={() => void handleDiscard()}
+            />
           ) : null}
         </div>
       </div>

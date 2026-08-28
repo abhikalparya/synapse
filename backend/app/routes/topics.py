@@ -7,6 +7,7 @@ from app.services.file_handler import resolve_raw_note_file
 from app.services.quiz import load_quiz, quiz_gate_completion_enabled
 from app.services.topics import (
     DependencyCycleError,
+    TopicIdentityConflictError,
     add_dependency,
     attach_resource,
     get_topic_by_id,
@@ -32,7 +33,12 @@ async def list_topics():
 
 @router.post("/topics", response_model=Topic, status_code=201)
 async def create_topic(body: TopicCreate):
-    row = save_topic(body)
+    try:
+        row = save_topic(body)
+    except TopicIdentityConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _topic_out(row)
 
 

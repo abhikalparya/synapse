@@ -1,4 +1,6 @@
-import type { GraphNode, StatsResponse, TopicStatus } from "../types";
+import { useState } from "react";
+import type { GraphNode, Proposal, StatsResponse, TopicStatus } from "../types";
+import { ProposalDetails } from "./ProposalDetails";
 
 const STATUS_LABEL: Record<TopicStatus, string> = {
   not_started: "Not started",
@@ -100,28 +102,117 @@ export function LearnWorkspace({ nodes, onOpenTopic }: LearnProps) {
 }
 
 type ReviewProps = {
+  pendingProposals: Proposal[];
+  loading: boolean;
+  error: string | null;
+  nodes: GraphNode[];
   onOpenAiOperations: () => void;
+  onRefresh: () => void;
+  onApplyProposal: (proposalId: string) => Promise<void>;
+  onDiscardProposal: (proposalId: string) => Promise<void>;
 };
 
-export function ReviewWorkspace({ onOpenAiOperations }: ReviewProps) {
+export function ReviewWorkspace({
+  pendingProposals,
+  loading,
+  error,
+  nodes,
+  onOpenAiOperations,
+  onRefresh,
+  onApplyProposal,
+  onDiscardProposal,
+}: ReviewProps) {
+  const [busyProposalId, setBusyProposalId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionErrorProposalId, setActionErrorProposalId] = useState<string | null>(null);
+
+  async function runAction(proposalId: string, action: (id: string) => Promise<void>) {
+    if (busyProposalId) return;
+    setBusyProposalId(proposalId);
+    setActionError(null);
+    setActionErrorProposalId(null);
+    try {
+      await action(proposalId);
+    } catch (actionFailure) {
+      setActionError(actionFailure instanceof Error ? actionFailure.message : "The proposal could not be updated");
+      setActionErrorProposalId(proposalId);
+    } finally {
+      setBusyProposalId(null);
+    }
+  }
+
   return (
-    <section className="workspace-view" aria-labelledby="review-title">
+    <section className="workspace-view workspace-view--review" aria-labelledby="review-title">
       <header className="workspace-view__header">
         <p className="workspace-view__eyebrow">Review</p>
         <h1 id="review-title">Review your knowledge</h1>
-        <p>Quizzes, proposals, and learning evidence will gather here as this workspace grows.</p>
+        <p>Read proposed knowledge changes before they become part of your graph.</p>
       </header>
 
-      <section className="workspace-view__section workspace-view__section--quiet">
-        <h2>Available now</h2>
-        <p>
-          Generate a proposal with Add knowledge, or select a topic in Explore to take its closure quiz. No review
-          metrics are shown until there is review data to support them.
-        </p>
-        <button type="button" className="workspace-view__action" onClick={onOpenAiOperations}>
-          Open AI operations
-        </button>
-      </section>
+      <div className="review-workspace__toolbar">
+        <div>
+          <h2>Pending proposals</h2>
+          <p>Apply changes you trust, or discard them without changing the graph.</p>
+        </div>
+        <div className="review-workspace__toolbar-actions">
+          <button type="button" className="workspace-view__action" onClick={onOpenAiOperations}>
+            Add knowledge
+          </button>
+          <button type="button" className="workspace-view__action workspace-view__action--quiet" onClick={onRefresh} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="review-workspace__error" role="alert">
+          <p>Could not load pending proposals: {error}</p>
+          <button type="button" className="workspace-view__action" onClick={onRefresh} disabled={loading}>
+            Try again
+          </button>
+        </div>
+      ) : null}
+
+      {actionError ? <p className="review-workspace__action-error" role="alert">{actionError}</p> : null}
+
+      {loading && pendingProposals.length === 0 ? (
+        <p className="workspace-view__muted">Loading pending proposals…</p>
+      ) : null}
+
+      {!loading && !error && pendingProposals.length === 0 ? (
+        <section className="review-workspace__empty" aria-live="polite">
+          <p className="review-workspace__empty-kicker">Nothing waiting</p>
+          <h2>No pending proposals</h2>
+          <p>Generate knowledge with Add knowledge and its proposal will appear here for review.</p>
+        </section>
+      ) : null}
+
+      {pendingProposals.length > 0 ? (
+        <div className="review-workspace__queue">
+          {pendingProposals.map((proposal) => (
+            <article className="review-proposal" key={proposal.id}>
+              <header className="review-proposal__header">
+                <div>
+                  <p className="review-proposal__kicker">Pending proposal</p>
+                  <h2>{proposal.source}</h2>
+                </div>
+                <span className="review-proposal__status">Pending</span>
+              </header>
+              <p className="review-proposal__meta">
+                {proposal.mode} · {proposal.created_at ? new Date(proposal.created_at).toLocaleString() : "Saved proposal"}
+              </p>
+              <ProposalDetails
+                proposal={proposal}
+                nodes={nodes}
+                busy={busyProposalId === proposal.id}
+                error={actionErrorProposalId === proposal.id ? actionError : null}
+                onApply={() => void runAction(proposal.id, onApplyProposal)}
+                onDiscard={() => void runAction(proposal.id, onDiscardProposal)}
+              />
+            </article>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

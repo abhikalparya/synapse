@@ -48,7 +48,8 @@ async def import_vault(vault_path: str) -> Proposal:
     if not notes:
         raise ValueError(f"No .md files found under {vault_path!r}")
 
-    known_titles = sorted({str(r.get("title", "")).strip() for r in load_all_topics() if r.get("title")})
+    existing_topics = load_all_topics()
+    known_titles = sorted({str(r.get("title", "")).strip() for r in existing_topics if r.get("title")})
     prompt = build_obsidian_import_prompt(
         [(n.title, n.body, n.links) for n in notes],
         known_topic_titles=known_titles,
@@ -70,6 +71,7 @@ async def import_vault(vault_path: str) -> Proposal:
             raw_topics,
             raw_deps,
             confidence_threshold=review_confidence_threshold(),
+            existing_topics=existing_topics,
         )
 
         # Best-effort: trace each kept topic back to its source note when the LLM used the

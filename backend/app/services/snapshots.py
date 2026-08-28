@@ -19,7 +19,7 @@ from typing import Any
 from sqlalchemy import func, select
 
 from app.db.models import DependencyRow, TopicRow
-from app.db.session import DB_PATH, SessionLocal, engine
+from app.db.session import DB_PATH, SessionLocal, ensure_topic_identity_schema, engine
 from app.services.proposal_events import log_rollback
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,10 @@ def restore_snapshot(snapshot_id: str | None = None) -> dict[str, Any]:
             dst.close()
     finally:
         src.close()
+
+    # Snapshots created before canonical topic identity was introduced do not
+    # have the column. Upgrade the restored file before any ORM query.
+    ensure_topic_identity_schema()
 
     with SessionLocal() as session:
         n_topics = session.scalar(select(func.count()).select_from(TopicRow)) or 0

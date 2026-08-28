@@ -24,11 +24,12 @@ from pathlib import Path
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_BACKEND_DIR))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.db.models import DependencyRow, ProposalRow, QuizRow, ResourceRow, TopicRow  # noqa: E402
-from app.db.session import SessionLocal  # noqa: E402
+from app.db.session import SessionLocal, ensure_topic_identity_schema, engine  # noqa: E402
+from app.services.topic_identity import canonical_topic_title  # noqa: E402
 
 TOPICS_DIR = _BACKEND_DIR / "topics"
 DEPENDENCIES_PATH = TOPICS_DIR / "_dependencies.json"
@@ -77,6 +78,7 @@ def migrate_topics(session: Session) -> set[str]:
             TopicRow(
                 id=topic_id,
                 title=str(data.get("title", "")),
+                canonical_title=canonical_topic_title(str(data.get("title", ""))),
                 summary=str(data.get("summary", "")),
                 status=str(data.get("status", "not_started")),
                 quiz_passed=bool(data.get("quiz_passed", False)),
@@ -220,11 +222,19 @@ def main() -> None:
         )
         raise SystemExit(1)
 
+    # The startup schema helper may have created the unique index on an empty
+    # database. Drop it temporarily so legacy collisions can be preserved and
+    # reported by the post-migration backfill rather than aborting migration.
+    with engine.begin() as connection:
+        connection.execute(text("DROP INDEX IF EXISTS uq_topics_canonical_title"))
+
     with SessionLocal() as session, session.begin():
         topic_ids = migrate_topics(session)
         migrate_dependencies(session, topic_ids)
         migrate_quizzes(session, topic_ids)
         migrate_proposals(session)
+
+    ensure_topic_identity_schema()
 
     print()
     print("Migration complete. Original JSON files were left untouched under topics/ and")

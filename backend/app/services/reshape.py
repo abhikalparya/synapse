@@ -27,13 +27,14 @@ from app.services.operation_context import finalize_generation_meta, synapse_ope
 from app.services.proposal_common import parse_llm_json_object, review_confidence_threshold
 from app.services.proposal_events import log_proposal_created
 from app.services.proposals import save_proposal
+from app.services.topic_identity import canonical_topic_title
 from app.services.topics import get_topic_by_id, load_all_topics, load_dependencies, would_create_cycle
 
 logger = logging.getLogger(__name__)
 
 
 def _resolve_title(title: str, title_to_id: dict[str, str]) -> str | None:
-    return title_to_id.get(title.strip().casefold())
+    return title_to_id.get(title.strip().casefold()) or title_to_id.get(canonical_topic_title(title))
 
 
 def filter_reshape_new_dependencies(
@@ -61,6 +62,27 @@ def filter_reshape_new_dependencies(
                     from_title=from_title,
                     to_title=to_title,
                     reason="unknown or out-of-scope topic reference",
+                ),
+            )
+            continue
+        if from_id == to_id:
+            skipped_dependencies.append(
+                SkippedProposedDependency(
+                    from_title=from_title,
+                    to_title=to_title,
+                    reason="duplicate resolution would create a self-dependency",
+                ),
+            )
+            continue
+        if any(
+            dependency["from_topic_id"] == from_id and dependency["to_topic_id"] == to_id
+            for dependency in accepted_dep_dicts
+        ):
+            skipped_dependencies.append(
+                SkippedProposedDependency(
+                    from_title=from_title,
+                    to_title=to_title,
+                    reason="duplicate dependency after duplicate resolution",
                 ),
             )
             continue
@@ -124,7 +146,16 @@ async def run_reshape(*, topic_ids: list[str], instructions: str | None) -> Prop
 
         # Only selected-topic titles resolve -- boundary/outside titles are deliberately never
         # added here, so any attempt to reference one is rejected by the lookups below.
-        title_to_id: dict[str, str] = {r["title"].casefold(): r["id"] for r in selected_rows}
+        title_to_id: dict[str, str] = {}
+        for row in selected_rows:
+            title_to_id[row["title"].casefold()] = row["id"]
+            title_to_id[canonical_topic_title(row["title"])] = row["id"]
+        existing_title_to_id: dict[str, str] = {}
+        for row in load_all_topics():
+            key = canonical_topic_title(row["title"])
+            if key:
+                existing_title_to_id.setdefault(key, row["id"])
+        proposed_title_to_id: dict[str, str] = {}
         threshold = review_confidence_threshold()
 
         proposed_topics: list[ProposedTopic] = []
@@ -134,16 +165,31 @@ async def run_reshape(*, topic_ids: list[str], instructions: str | None) -> Prop
             title = str(row.get("title", "")).strip()
             if not title:
                 continue
+            canonical_title = canonical_topic_title(title)
+            if not canonical_title:
+                continue
             summary = str(row.get("summary", "")).strip()
             try:
                 confidence = max(0.0, min(1.0, float(row.get("confidence", 0.5))))
             except (TypeError, ValueError):
                 confidence = 0.5
+            resolved_id = (
+                title_to_id.get(canonical_title)
+                or existing_title_to_id.get(canonical_title)
+                or proposed_title_to_id.get(canonical_title)
+            )
+            if resolved_id is not None:
+                title_to_id[title.casefold()] = resolved_id
+                title_to_id[canonical_title] = resolved_id
+                continue
+
             temp_id = uuid.uuid4().hex
             proposed_topics.append(
                 ProposedTopic(temp_id=temp_id, title=title, summary=summary, confidence=confidence, needs_review=confidence <= threshold),
             )
+            proposed_title_to_id[canonical_title] = temp_id
             title_to_id[title.casefold()] = temp_id
+            title_to_id[canonical_title] = temp_id
 
         # Seed the in-memory cycle check with the selection's real, current internal edges --
         # unlike ingest/expand, reshape's whole premise is an existing subgraph, so this check

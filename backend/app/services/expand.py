@@ -31,11 +31,12 @@ async def run_expand(*, topic_id: str, instructions: str | None) -> Proposal:
     if row is None:
         raise LookupError(f"No topic with id {topic_id!r}")
 
+    all_topics = load_all_topics()
     all_deps = load_dependencies()
     existing_prereq_ids = {d["to_topic_id"] for d in all_deps if d["from_topic_id"] == topic_id}
     existing_prereq_titles: list[str] = []
     if existing_prereq_ids:
-        title_by_id = {t["id"]: t["title"] for t in load_all_topics()}
+        title_by_id = {t["id"]: t["title"] for t in all_topics}
         existing_prereq_titles = [title_by_id[i] for i in existing_prereq_ids if i in title_by_id]
 
     prompt = build_expand_prompt(row["title"], row["summary"], existing_prereq_titles, instructions)
@@ -57,6 +58,7 @@ async def run_expand(*, topic_id: str, instructions: str | None) -> Proposal:
             raw_deps,
             confidence_threshold=review_confidence_threshold(),
             extra_title_to_id={row["title"].casefold(): topic_id},
+            existing_topics=all_topics,
         )
 
         label = f"expand: {row['title']!r}"

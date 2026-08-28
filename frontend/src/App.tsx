@@ -15,6 +15,7 @@ import type {
   GraphData,
   GraphNode,
   PathResponse,
+  Proposal,
   RollbackResponse,
   StatsResponse,
   Zone,
@@ -60,6 +61,9 @@ export default function App() {
   const [dependencies, setDependencies] = useState<Dependency[]>([]);
   const [dependenciesLoading, setDependenciesLoading] = useState(true);
   const [dependenciesError, setDependenciesError] = useState<string | null>(null);
+  const [pendingProposals, setPendingProposals] = useState<Proposal[]>([]);
+  const [proposalsLoading, setProposalsLoading] = useState(true);
+  const [proposalsError, setProposalsError] = useState<string | null>(null);
   const [learningTopicId, setLearningTopicId] = useState<string | null>(null);
 
   const graphAreaRef = useRef<HTMLDivElement>(null);
@@ -68,6 +72,7 @@ export default function App() {
   const [graphSize, setGraphSize] = useState({ w: 400, h: 400 });
 
   const layoutSnapshotRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const proposalsRequestGenerationRef = useRef(0);
   const graphDataRef = useRef(graphData);
   graphDataRef.current = graphData;
 
@@ -143,12 +148,35 @@ export default function App() {
     }
   }, []);
 
+  const refreshProposals = useCallback(async () => {
+    const requestGeneration = ++proposalsRequestGenerationRef.current;
+    setProposalsLoading(true);
+    setProposalsError(null);
+    try {
+      const proposals = await fetchJson<Proposal[]>("/proposals?status=pending");
+      if (requestGeneration !== proposalsRequestGenerationRef.current) return;
+      setPendingProposals(proposals);
+    } catch (e) {
+      if (requestGeneration !== proposalsRequestGenerationRef.current) return;
+      setProposalsError(e instanceof Error ? e.message : "Failed to load pending proposals");
+    } finally {
+      if (requestGeneration === proposalsRequestGenerationRef.current) {
+        setProposalsLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     void refreshGraph({ silent: false, preserveLayout: false });
     void refreshStats();
     void refreshZones();
     void refreshDependencies();
-  }, [refreshDependencies, refreshGraph, refreshStats, refreshZones]);
+    void refreshProposals();
+  }, [refreshDependencies, refreshGraph, refreshProposals, refreshStats, refreshZones]);
+
+  useEffect(() => {
+    if (activeView === "review") void refreshProposals();
+  }, [activeView, refreshProposals]);
 
   useEffect(() => {
     const el = graphAreaRef.current;
@@ -192,14 +220,53 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [toast]);
 
+  const refreshPersistedState = useCallback(
+    async (preserveLayout: boolean) => {
+      await Promise.all([
+        refreshGraph({ silent: true, preserveLayout }),
+        refreshStats(),
+        refreshDependencies(),
+        refreshProposals(),
+      ]);
+    },
+    [refreshDependencies, refreshGraph, refreshProposals, refreshStats],
+  );
+
   const handleApplied = useCallback(
     async (result: ApplyResponse) => {
-      await refreshGraph({ silent: true, preserveLayout: true });
-      await refreshStats();
-      await refreshDependencies();
+      await refreshPersistedState(true);
       setToast(`Applied: ${result.created_topics.length} topic(s), ${result.created_dependencies.length} dependency(ies)`);
     },
-    [refreshDependencies, refreshGraph, refreshStats],
+    [refreshPersistedState],
+  );
+
+  const handleDiscarded = useCallback(async () => {
+    await refreshPersistedState(true);
+  }, [refreshPersistedState]);
+
+  const handleApplyProposal = useCallback(
+    async (proposalId: string) => {
+      const result = await fetchJson<ApplyResponse>("/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposal_id: proposalId }),
+      });
+      await refreshPersistedState(true);
+      setToast(`Applied: ${result.created_topics.length} topic(s), ${result.created_dependencies.length} dependency(ies)`);
+    },
+    [refreshPersistedState],
+  );
+
+  const handleDiscardProposal = useCallback(
+    async (proposalId: string) => {
+      await fetchJson("/discard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposal_id: proposalId }),
+      });
+      await refreshPersistedState(true);
+    },
+    [refreshPersistedState],
   );
 
   const handleTopicChanged = useCallback(async () => {
@@ -231,9 +298,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      await refreshGraph({ silent: true, preserveLayout: false });
-      await refreshStats();
-      await refreshDependencies();
+      await refreshPersistedState(false);
       setSelectedNode(null);
       setToast(`Rolled back to snapshot ${res.snapshot_id}`);
     } catch (e) {
@@ -241,7 +306,12 @@ export default function App() {
     } finally {
       setUndoBusy(false);
     }
-  }, [refreshDependencies, refreshGraph, refreshStats]);
+  }, [refreshPersistedState]);
+
+  const handleAiModalClose = useCallback(() => {
+    setAiModalOpen(false);
+    void refreshProposals();
+  }, [refreshProposals]);
 
   const resolveNodeById = useCallback(
     (id: string) => graphData.nodes.find((n) => n.id === id) ?? null,
@@ -368,7 +438,18 @@ export default function App() {
               <LearnWorkspace nodes={graphData.nodes} onOpenTopic={openTopicInLearn} />
             )
           ) : null}
-          {activeView === "review" ? <ReviewWorkspace onOpenAiOperations={() => setAiModalOpen(true)} /> : null}
+          {activeView === "review" ? (
+            <ReviewWorkspace
+              pendingProposals={pendingProposals}
+              loading={proposalsLoading}
+              error={proposalsError}
+              nodes={graphData.nodes}
+              onOpenAiOperations={() => setAiModalOpen(true)}
+              onRefresh={() => void refreshProposals()}
+              onApplyProposal={handleApplyProposal}
+              onDiscardProposal={handleDiscardProposal}
+            />
+          ) : null}
           {activeView === "explore" ? (
             <>
               <header className="app__header">
@@ -436,9 +517,10 @@ export default function App() {
 
       <AiOperationsModal
         open={aiModalOpen}
-        onClose={() => setAiModalOpen(false)}
+        onClose={handleAiModalClose}
         nodes={graphData.nodes}
-        onApplied={(result) => void handleApplied(result)}
+        onApplied={handleApplied}
+        onDiscarded={handleDiscarded}
       />
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />

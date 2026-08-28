@@ -9,7 +9,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from app.db.models import ProposalRow, ResourceRow
+from app.db.models import ProposalRow, ResourceRow, TopicRow
 from app.db.session import SessionLocal, ensure_proposal_generation_meta_column
 from app.models.proposal import (
     ApplyResponse,
@@ -24,6 +24,7 @@ from app.models.proposal import (
 from app.models.topic import Dependency, DependencyCreate, Resource, Topic, TopicCreate
 from app.services.proposal_events import log_proposal_applied, log_proposal_discarded
 from app.services.snapshots import snapshot_graph
+from app.services.topic_identity import canonical_topic_title
 from app.services.topics import (
     DependencyCycleError,
     _add_dependency_in_session,
@@ -161,6 +162,19 @@ def apply_proposal(proposal_id: str) -> ApplyResponse:
 
     with SessionLocal() as session, session.begin():
         for pt in proposal.topics:
+            canonical_title = canonical_topic_title(pt.title)
+            if not canonical_title:
+                raise ValueError(f"Proposal contains an invalid topic title: {pt.title!r}")
+
+            existing = session.scalars(
+                select(TopicRow)
+                .where(TopicRow.canonical_title == canonical_title)
+                .order_by(TopicRow.created_at, TopicRow.id)
+            ).first()
+            if existing is not None:
+                temp_to_real[pt.temp_id] = existing.id
+                continue
+
             row = _create_topic_in_session(session, TopicCreate(title=pt.title, summary=pt.summary))
             temp_to_real[pt.temp_id] = row.id
             resources: list[Resource] = []
