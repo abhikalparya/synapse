@@ -42,7 +42,7 @@ const NO_IDS: readonly string[] = [];
 const NO_USED_IDS = new Set<string>();
 
 export default function App() {
-  const [activeView, setActiveView] = useState<WorkspaceView>("explore");
+  const [activeView, setActiveView] = useState<WorkspaceView>("home");
   const [graphData, setGraphData] = useState<GraphData>(() => prepareGraphData(emptyGraph()));
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [graphLoading, setGraphLoading] = useState(true);
@@ -443,9 +443,20 @@ export default function App() {
           {activeView === "home" ? (
             <HomeWorkspace
               stats={stats}
-              loading={statsLoading}
+              statsLoading={statsLoading}
+              graphLoading={graphLoading}
+              graphError={graphError}
               graphNodes={graphData.nodes}
-              onOpenTopic={openTopicInExplore}
+              pendingProposals={pendingProposals}
+              proposalsLoading={proposalsLoading}
+              proposalsError={proposalsError}
+              zones={zones}
+              onOpenAiOperations={() => setAiModalOpen(true)}
+              onOpenLearn={() => setActiveView("learn")}
+              onOpenExplore={() => setActiveView("explore")}
+              onOpenReview={() => setActiveView("review")}
+              onOpenTopicInLearn={openTopicInLearn}
+              onRetryGraph={() => void refreshGraph({ silent: false, preserveLayout: true })}
             />
           ) : null}
           {activeView === "learn" ? (

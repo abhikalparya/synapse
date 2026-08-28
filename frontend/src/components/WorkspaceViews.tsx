@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { GraphNode, Proposal, StatsResponse, TopicStatus } from "../types";
+import type { GraphNode, Proposal, StatsResponse, TopicStatus, Zone } from "../types";
 import { ProposalDetails } from "./ProposalDetails";
 
 const STATUS_LABEL: Record<TopicStatus, string> = {
@@ -10,60 +10,191 @@ const STATUS_LABEL: Record<TopicStatus, string> = {
 
 type HomeProps = {
   stats: StatsResponse | null;
-  loading: boolean;
+  statsLoading: boolean;
+  graphLoading: boolean;
+  graphError: string | null;
   graphNodes: GraphNode[];
-  onOpenTopic: (id: string) => void;
+  pendingProposals: Proposal[];
+  proposalsLoading: boolean;
+  proposalsError: string | null;
+  zones: Zone[];
+  onOpenAiOperations: () => void;
+  onOpenLearn: () => void;
+  onOpenExplore: () => void;
+  onOpenReview: () => void;
+  onOpenTopicInLearn: (id: string) => void;
+  onRetryGraph: () => void;
 };
 
-export function HomeWorkspace({ stats, loading, graphNodes, onOpenTopic }: HomeProps) {
-  const isTopicAvailable = (id: string) => graphNodes.some((node) => node.id === id);
+export function HomeWorkspace({
+  stats,
+  statsLoading,
+  graphLoading,
+  graphError,
+  graphNodes,
+  pendingProposals,
+  proposalsLoading,
+  proposalsError,
+  zones,
+  onOpenAiOperations,
+  onOpenLearn,
+  onOpenExplore,
+  onOpenReview,
+  onOpenTopicInLearn,
+  onRetryGraph,
+}: HomeProps) {
+  const inProgressTopics = graphNodes
+    .filter((node) => node.status === "in_progress")
+    .sort((a, b) => (a.title ?? a.id).localeCompare(b.title ?? b.id));
+  const hasTopics = graphNodes.length > 0;
+  const showEmptyState = !graphLoading && !graphError && !hasTopics;
+  const showGraphError = !graphLoading && Boolean(graphError) && !hasTopics;
+  const showGraphRefreshWarning = !graphLoading && Boolean(graphError) && hasTopics;
+  const topicCount = statsLoading ? "—" : stats?.total_nodes ?? "—";
+  const dependencyCount = statsLoading ? "—" : stats?.total_edges ?? "—";
+  const proposalCount = proposalsLoading || proposalsError ? "—" : pendingProposals.length;
 
   return (
     <section className="workspace-view workspace-view--home" aria-labelledby="home-title">
       <header className="workspace-view__header">
-        <p className="workspace-view__eyebrow">Workspace</p>
-        <h1 id="home-title">What would you like to learn?</h1>
-        <p>Continue with a topic or open Explore to see how your knowledge connects.</p>
+        <p className="workspace-view__eyebrow">Knowledge overview</p>
+        <h1 id="home-title">Your knowledge graph</h1>
+        <p>Continue learning, review proposed changes, or explore how your topics connect.</p>
       </header>
+
+      <div className="home-overview__actions" aria-label="Knowledge actions">
+        <button type="button" className="workspace-view__action" onClick={onOpenAiOperations}>
+          + Add knowledge
+        </button>
+        <button type="button" className="workspace-view__action workspace-view__action--quiet" onClick={onOpenLearn}>
+          Learn
+        </button>
+        <button type="button" className="workspace-view__action workspace-view__action--quiet" onClick={onOpenExplore}>
+          Explore graph
+        </button>
+        {!proposalsLoading && pendingProposals.length > 0 ? (
+          <button type="button" className="workspace-view__action workspace-view__action--quiet" onClick={onOpenReview}>
+            Review ({pendingProposals.length})
+          </button>
+        ) : null}
+      </div>
 
       <div className="workspace-view__summary" aria-label="Knowledge summary">
         <div>
-          <span className="workspace-view__summary-value">{loading ? "—" : stats?.total_nodes ?? 0}</span>
+          <span className="workspace-view__summary-value">{topicCount}</span>
           <span className="workspace-view__summary-label">Topics</span>
         </div>
         <div>
-          <span className="workspace-view__summary-value">{loading ? "—" : stats?.total_edges ?? 0}</span>
+          <span className="workspace-view__summary-value">{dependencyCount}</span>
           <span className="workspace-view__summary-label">Dependencies</span>
+        </div>
+        {zones.length > 0 ? (
+          <div>
+            <span className="workspace-view__summary-value">{zones.length}</span>
+            <span className="workspace-view__summary-label">Zones</span>
+          </div>
+        ) : null}
+        <div>
+          <span className="workspace-view__summary-value">{proposalCount}</span>
+          <span className="workspace-view__summary-label">Pending review</span>
         </div>
       </div>
 
-      <section className="workspace-view__section" aria-labelledby="home-recent-title">
-        <div className="workspace-view__section-heading">
-          <h2 id="home-recent-title">Recent topics</h2>
-          <span>{loading ? "Loading…" : `${stats?.recent_nodes.length ?? 0} available`}</span>
+      {graphLoading && !hasTopics ? <p className="workspace-view__muted">Loading your knowledge graph…</p> : null}
+
+      {showGraphRefreshWarning ? (
+        <div className="home-overview__warning" role="alert">
+          <p>
+            The latest graph refresh failed. Showing the last loaded topic information. {graphError}
+          </p>
+          <button type="button" className="workspace-view__action" onClick={onRetryGraph}>
+            Retry
+          </button>
         </div>
-        {!stats?.recent_nodes.length ? (
+      ) : null}
+
+      {showGraphError ? (
+        <section className="workspace-view__section workspace-view__section--quiet" aria-labelledby="home-graph-error-title">
+          <p className="workspace-view__eyebrow">Graph unavailable</p>
+          <h2 id="home-graph-error-title">Your knowledge could not be loaded</h2>
+          <p className="workspace-view__muted">{graphError}</p>
+        </section>
+      ) : null}
+
+      {showEmptyState ? (
+        <section className="workspace-view__section workspace-view__section--quiet" aria-labelledby="home-empty-title">
+          <p className="workspace-view__eyebrow">A clear starting point</p>
+          <h2 id="home-empty-title">Add knowledge to begin</h2>
           <p className="workspace-view__muted">
-            {loading ? "Loading your topics…" : "No topics yet. Use Add knowledge to create your first learning graph."}
+            Synapse turns your notes and ideas into a directed knowledge graph you can study and explore.
+          </p>
+          <div className="home-overview__actions">
+            <button type="button" className="workspace-view__action" onClick={onOpenAiOperations}>
+              + Add knowledge
+            </button>
+            <button type="button" className="workspace-view__action workspace-view__action--quiet" onClick={onOpenExplore}>
+              Explore
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {hasTopics ? (
+        <section className="workspace-view__section" aria-labelledby="home-continue-title">
+        <div className="workspace-view__section-heading">
+          <h2 id="home-continue-title">Continue learning</h2>
+          <span>{inProgressTopics.length ? `${inProgressTopics.length} in progress` : "No active topics"}</span>
+        </div>
+        {inProgressTopics.length === 0 ? (
+          <p className="workspace-view__muted">
+            No topics are currently in progress. Open Learn to choose a topic and begin.
           </p>
         ) : (
           <div className="workspace-topic-list">
-            {stats.recent_nodes.map((topic) => (
+            {inProgressTopics.map((topic) => (
               <button
                 type="button"
                 className="workspace-topic-list__item"
                 key={topic.id}
-                onClick={() => onOpenTopic(topic.id)}
-                disabled={!isTopicAvailable(topic.id)}
-                title={isTopicAvailable(topic.id) ? undefined : "This topic will be available when the graph is ready."}
+                onClick={() => onOpenTopicInLearn(topic.id)}
               >
-                <span>{topic.title}</span>
-                <small>{STATUS_LABEL[topic.status]}</small>
+                <span>{topic.title ?? topic.id}</span>
+                <small>{STATUS_LABEL[topic.status ?? "not_started"]}</small>
               </button>
             ))}
           </div>
         )}
-      </section>
+        </section>
+      ) : null}
+
+      {pendingProposals.length > 0 || proposalsError ? (
+        <section className="workspace-view__section workspace-view__section--quiet" aria-labelledby="home-review-title">
+          <div className="workspace-view__section-heading">
+            <h2 id="home-review-title">Pending review</h2>
+            <span>{proposalsError ? "Unavailable" : `${pendingProposals.length} waiting`}</span>
+          </div>
+          {proposalsError ? (
+            <p className="workspace-view__muted">Pending proposals could not be loaded. Open Review to try again.</p>
+          ) : (
+            <>
+              <ul className="home-overview__proposal-preview">
+                {pendingProposals.slice(0, 3).map((proposal) => (
+                  <li key={proposal.id} className="home-overview__proposal-item">
+                    <span>{proposal.source || "Untitled proposal"}</span>
+                    <small>{proposal.mode}</small>
+                  </li>
+                ))}
+              </ul>
+              {pendingProposals.length > 3 ? (
+                <p className="workspace-view__muted">and {pendingProposals.length - 3} more waiting in Review.</p>
+              ) : null}
+            </>
+          )}
+          <button type="button" className="workspace-view__action workspace-view__action--quiet" onClick={onOpenReview}>
+            Open Review
+          </button>
+        </section>
+      ) : null}
     </section>
   );
 }
