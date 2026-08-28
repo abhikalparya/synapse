@@ -824,7 +824,44 @@
 }
 
 .app__error {
+  inset: 1rem auto auto 1rem;
+  width: min(28rem, calc(100% - 2rem));
+  align-items: flex-start;
+  gap: 0.7rem;
+  max-width: none;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(248, 113, 113, 0.24);
+  border-radius: var(--radius-sm);
+  background: rgba(57, 18, 28, 0.88);
   color: #fca5a5;
+  pointer-events: auto;
+}
+
+.app__error p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.app__path-status {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 3;
+  max-width: min(26rem, calc(100% - 2rem));
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(103, 232, 249, 0.2);
+  border-radius: 999px;
+  background: rgba(8, 20, 31, 0.84);
+  color: rgba(165, 243, 252, 0.9);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.app__path-status--error {
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(57, 18, 28, 0.84);
+  color: #fecaca;
 }
 
 .app__bottom {

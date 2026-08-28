@@ -53,6 +53,8 @@ export default function App() {
   const [reheatToken, setReheatToken] = useState(0);
   const [pathNodeIds, setPathNodeIds] = useState<Set<string>>(new Set());
   const [pathLinkKeys, setPathLinkKeys] = useState<Set<string>>(new Set());
+  const [pathLoading, setPathLoading] = useState(false);
+  const [pathError, setPathError] = useState<string | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [undoBusy, setUndoBusy] = useState(false);
@@ -72,6 +74,10 @@ export default function App() {
   const [graphSize, setGraphSize] = useState({ w: 400, h: 400 });
 
   const layoutSnapshotRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const graphRequestGenerationRef = useRef(0);
+  const statsRequestGenerationRef = useRef(0);
+  const dependenciesRequestGenerationRef = useRef(0);
+  const pathRequestGenerationRef = useRef(0);
   const proposalsRequestGenerationRef = useRef(0);
   const graphDataRef = useRef(graphData);
   graphDataRef.current = graphData;
@@ -93,37 +99,45 @@ export default function App() {
   }, [graphData]);
 
   const refreshGraph = useCallback(async (opts?: { silent?: boolean; preserveLayout?: boolean }) => {
+    const requestGeneration = ++graphRequestGenerationRef.current;
     const silent = opts?.silent ?? false;
     const preserve = opts?.preserveLayout ?? false;
     if (!silent) setGraphLoading(true);
+    else setGraphLoading(false);
     setGraphError(null);
     try {
-      if (!preserve) {
-        layoutSnapshotRef.current = new Map();
-      }
       const g = await fetchJson<GraphData>("/graph");
+      if (requestGeneration !== graphRequestGenerationRef.current) return;
       const prepared = prepareGraphData(g, {
         snapshot: preserve ? layoutSnapshotRef.current : undefined,
-        maxLinksPerNode: 14,
       });
+      if (!preserve) layoutSnapshotRef.current = new Map();
       setGraphData(prepared);
       setReheatToken((x) => x + 1);
     } catch (e) {
+      if (requestGeneration !== graphRequestGenerationRef.current) return;
       setGraphError(e instanceof Error ? e.message : "Failed to load graph");
     } finally {
-      if (!silent) setGraphLoading(false);
+      if (requestGeneration === graphRequestGenerationRef.current) {
+        setGraphLoading(false);
+      }
     }
   }, []);
 
   const refreshStats = useCallback(async () => {
+    const requestGeneration = ++statsRequestGenerationRef.current;
     setStatsLoading(true);
     try {
       const s = await fetchJson<StatsResponse>("/stats");
+      if (requestGeneration !== statsRequestGenerationRef.current) return;
       setStats(s);
     } catch {
+      if (requestGeneration !== statsRequestGenerationRef.current) return;
       setStats(null);
     } finally {
-      setStatsLoading(false);
+      if (requestGeneration === statsRequestGenerationRef.current) {
+        setStatsLoading(false);
+      }
     }
   }, []);
 
@@ -136,15 +150,21 @@ export default function App() {
   }, []);
 
   const refreshDependencies = useCallback(async () => {
+    const requestGeneration = ++dependenciesRequestGenerationRef.current;
     setDependenciesLoading(true);
     setDependenciesError(null);
     try {
-      setDependencies(await fetchJson<Dependency[]>("/dependencies"));
+      const nextDependencies = await fetchJson<Dependency[]>("/dependencies");
+      if (requestGeneration !== dependenciesRequestGenerationRef.current) return;
+      setDependencies(nextDependencies);
     } catch (e) {
+      if (requestGeneration !== dependenciesRequestGenerationRef.current) return;
       setDependencies([]);
       setDependenciesError(e instanceof Error ? e.message : "Failed to load relationships");
     } finally {
-      setDependenciesLoading(false);
+      if (requestGeneration === dependenciesRequestGenerationRef.current) {
+        setDependenciesLoading(false);
+      }
     }
   }, []);
 
@@ -191,28 +211,34 @@ export default function App() {
 
   useEffect(() => {
     const id = selectedNode?.id;
+    const requestGeneration = ++pathRequestGenerationRef.current;
+    setPathNodeIds(new Set());
+    setPathLinkKeys(new Set());
+    setPathError(null);
     if (!id) {
-      setPathNodeIds(new Set());
-      setPathLinkKeys(new Set());
+      setPathLoading(false);
       return;
     }
+    setPathLoading(true);
     let cancelled = false;
     void (async () => {
       try {
         const res = await fetchJson<PathResponse>(`/graph/path?target=${encodeURIComponent(id)}`);
-        if (cancelled) return;
+        if (cancelled || requestGeneration !== pathRequestGenerationRef.current) return;
         setPathNodeIds(new Set(res.chain.map((c) => c.id)));
         setPathLinkKeys(new Set(res.edges.map((e) => linkKey(e.source, e.target))));
-      } catch {
-        if (cancelled) return;
-        setPathNodeIds(new Set());
-        setPathLinkKeys(new Set());
+      } catch (e) {
+        if (cancelled || requestGeneration !== pathRequestGenerationRef.current) return;
+        setPathError(e instanceof Error ? e.message : "Failed to load prerequisites");
+      }
+      if (!cancelled && requestGeneration === pathRequestGenerationRef.current) {
+        setPathLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedNode?.id]);
+  }, [reheatToken, selectedNode?.id]);
 
   useEffect(() => {
     if (!toast) return;
@@ -399,7 +425,10 @@ export default function App() {
         contextPanel={
           activeView === "explore" && selectedNode ? (
             <NodeDetailsPanel
-              graphData={graphData}
+              nodes={graphData.nodes}
+              dependencies={dependencies}
+              dependenciesLoading={dependenciesLoading}
+              dependenciesError={dependenciesError}
               node={selectedNode}
               onClose={() => setSelectedNode(null)}
               onNavigateToNode={navigateToNode}
@@ -463,11 +492,27 @@ export default function App() {
               </header>
 
               <div className="app__canvas" ref={graphAreaRef}>
-                {graphError ? <div className="app__error">{graphError}</div> : null}
+                {graphError ? (
+                  <div className="app__error" role="alert">
+                    <p>{graphError}</p>
+                    <button
+                      type="button"
+                      className="workspace-view__action"
+                      onClick={() => void refreshGraph({ silent: false, preserveLayout: true })}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
                 {canvasLoadingEmpty ? (
                   <div className="app__canvas-loading" aria-live="polite">
                     <span className="app__canvas-loading__dot" aria-hidden />
                     Syncing dependency graph…
+                  </div>
+                ) : null}
+                {selectedNode && (pathLoading || pathError) ? (
+                  <div className={`app__path-status${pathError ? " app__path-status--error" : ""}`} role={pathError ? "alert" : "status"}>
+                    {pathError ? `Prerequisite path unavailable: ${pathError}` : "Tracing prerequisites…"}
                   </div>
                 ) : null}
                 {emptyBrain ? (

@@ -11,6 +11,9 @@ const NO_BIRTH: readonly string[] = [];
 const NO_PATH_IDS: ReadonlySet<string> = new Set();
 const NO_ZONES: readonly Zone[] = [];
 const PATH_HIGHLIGHT_COLOR = "#4fd1ff";
+const SELECTED_NODE_COLOR = "#e8ddff";
+const PREREQUISITE_COLOR = "#67e8f9";
+const DEPENDENT_COLOR = "#fbbf24";
 const DEFAULT_ZONE_COLOR = "#8b5cf6";
 
 const STATUS_COLORS: Record<TopicStatus, string> = {
@@ -55,10 +58,14 @@ type GraphAccessorCtx = {
   data: GraphData;
   dimmingFocusId: string | null;
   focusNeighborNodes: Set<string>;
+  focusPrerequisiteNodes: Set<string>;
+  focusDependentNodes: Set<string>;
   focusLinkKeys: Set<string>;
+  focusPrerequisiteLinkKeys: Set<string>;
+  focusDependentLinkKeys: Set<string>;
   hoverDimRef: MutableRefObject<number>;
-  /** When true, only edges between the focus node and its neighbors are shown. */
-  restrictLinksToFocus: boolean;
+  /** Whether selected-node focus dimming is active. */
+  focusDimmingActive: boolean;
   /** Node ids along the currently highlighted prerequisite chain (empty when none). */
   pathNodeIds: ReadonlySet<string>;
   /** Directed edge keys (``linkKey(source, target)``) along the highlighted chain. */
@@ -263,15 +270,29 @@ function KnowledgeGraphInner({
   const interactionFocusId = hoverId ?? selectedId;
   const hasQueryHighlight = queryUsedIds.size > 0 || Boolean(queryUpdatedId);
   const hasPathHighlight = pathNodeIds.size > 0;
-  /** Focus mode (fade + link filter) applies only after a node is selected, not on mere hover. */
+  /** Focus mode (fade + link emphasis) applies only after a node is selected, not on mere hover. */
   const dimmingFocusId = hasQueryHighlight || hasPathHighlight ? null : selectedId;
 
-  const { focusNeighborNodes, focusLinkKeys } = useMemo(() => {
-    const { nodes, linkKeys } = neighborSets(data, dimmingFocusId);
-    return { focusNeighborNodes: nodes, focusLinkKeys: linkKeys };
+  const {
+    focusNeighborNodes,
+    focusPrerequisiteNodes,
+    focusDependentNodes,
+    focusLinkKeys,
+    focusPrerequisiteLinkKeys,
+    focusDependentLinkKeys,
+  } = useMemo(() => {
+    const relationships = neighborSets(data, dimmingFocusId);
+    return {
+      focusNeighborNodes: relationships.neighborIds,
+      focusPrerequisiteNodes: relationships.prerequisiteIds,
+      focusDependentNodes: relationships.dependentIds,
+      focusLinkKeys: relationships.linkKeys,
+      focusPrerequisiteLinkKeys: relationships.prerequisiteLinkKeys,
+      focusDependentLinkKeys: relationships.dependentLinkKeys,
+    };
   }, [data, dimmingFocusId]);
 
-  const restrictLinksToFocus = Boolean(dimmingFocusId) && !hasQueryHighlight;
+  const focusDimmingActive = Boolean(dimmingFocusId) && !hasQueryHighlight;
 
   const zoneMembership = useMemo(() => {
     const map = new Map<string, { color: string; nodeIds: string[] }>();
@@ -290,9 +311,13 @@ function KnowledgeGraphInner({
     data,
     dimmingFocusId,
     focusNeighborNodes,
+    focusPrerequisiteNodes,
+    focusDependentNodes,
     focusLinkKeys,
+    focusPrerequisiteLinkKeys,
+    focusDependentLinkKeys,
     hoverDimRef,
-    restrictLinksToFocus,
+    focusDimmingActive,
     pathNodeIds,
     pathLinkKeys,
     zoneMembership,
@@ -493,8 +518,17 @@ function KnowledgeGraphInner({
     }
     const dim = g.hoverDimRef.current;
     const rgb = cssColorToRgbString(statusColor(n.status));
-    if (!g.dimmingFocusId || g.focusNeighborNodes.has(id)) return fadeRgbColor(rgb, 0.92);
-    const floor = g.restrictLinksToFocus ? 0.16 : 0.2;
+    if (!g.dimmingFocusId) return fadeRgbColor(rgb, 0.92);
+    if (id === g.dimmingFocusId) {
+      return fadeRgbColor(cssColorToRgbString(SELECTED_NODE_COLOR), 1);
+    }
+    if (g.focusPrerequisiteNodes.has(id)) {
+      return fadeRgbColor(cssColorToRgbString(PREREQUISITE_COLOR), 1);
+    }
+    if (g.focusDependentNodes.has(id)) {
+      return fadeRgbColor(cssColorToRgbString(DEPENDENT_COLOR), 1);
+    }
+    const floor = g.focusDimmingActive ? 0.16 : 0.2;
     const opacityMult = Math.max(floor, 1 - dim * 0.88);
     return fadeRgbColor(rgb, opacityMult);
   }, []);
@@ -509,11 +543,12 @@ function KnowledgeGraphInner({
       return g.pathLinkKeys.has(k) ? "rgba(79, 209, 255, 0.92)" : "rgba(120, 135, 160, 0.08)";
     }
     const dim = g.hoverDimRef.current;
-    const inN = g.focusLinkKeys.has(k);
     const fadeOut = Math.max(0.06, 1 - dim * 0.9);
-    if (inN) {
-      const a = 0.4 + dim * 0.34;
-      return `rgba(186, 198, 255, ${a})`;
+    if (g.focusPrerequisiteLinkKeys.has(k)) {
+      return `rgba(103, 232, 249, ${0.55 + dim * 0.35})`;
+    }
+    if (g.focusDependentLinkKeys.has(k)) {
+      return `rgba(251, 191, 36, ${0.55 + dim * 0.35})`;
     }
     return `rgba(120, 135, 160, ${0.28 * fadeOut})`;
   }, []);
@@ -528,17 +563,13 @@ function KnowledgeGraphInner({
       return g.pathLinkKeys.has(k) ? 2.4 : 0.12;
     }
     const dim = g.hoverDimRef.current;
-    const inN = g.focusLinkKeys.has(k);
-    if (inN) return 0.58 + dim * 0.44;
+    if (g.focusLinkKeys.has(k)) return 0.58 + dim * 0.44;
     return Math.max(0.1, 0.28 - dim * 0.14);
   }, []);
 
-  const linkVisibility = useCallback((link: GraphLink) => {
-    const g = graphAccessorRef.current;
-    if (!g?.restrictLinksToFocus) return true;
-    const s = typeof link.source === "string" ? link.source : link.source.id;
-    const t = typeof link.target === "string" ? link.target : link.target.id;
-    return g.focusLinkKeys.has(linkKey(s, t));
+  /** Keep the complete graph topology visible; selection is expressed through styling. */
+  const linkVisibility = useCallback((_link: GraphLink) => {
+    return true;
   }, []);
 
   const renderZonesPre = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -561,10 +592,11 @@ function KnowledgeGraphInner({
     (n: GraphNode) => {
       const deg = n.__deg ?? 0;
       if (hoverId === n.id) return n.title ?? n.id;
+      if (selectedId === n.id) return n.title ?? n.id;
       if (deg >= 12) return n.title ?? n.id;
       return "";
     },
-    [hoverId],
+    [hoverId, selectedId],
   );
 
   const handleNodeClick = useCallback(

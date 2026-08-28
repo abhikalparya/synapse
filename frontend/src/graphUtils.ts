@@ -26,40 +26,6 @@ export function dedupeLinks(links: GraphLink[]): GraphLink[] {
   return out;
 }
 
-/**
- * Greedy sparsify: keep edges with lower max-endpoint degree first until each node hits the cap.
- * Reduces dense tag-clique clutter while preserving weaker ties.
- */
-export function capLinksPerNode(links: GraphLink[], maxPerNode: number): GraphLink[] {
-  if (maxPerNode <= 0) return links;
-  const deduped = dedupeLinks(links);
-  const deg = new Map<string, number>();
-  for (const l of deduped) {
-    const s = linkEndpoint(l, "source");
-    const t = linkEndpoint(l, "target");
-    deg.set(s, (deg.get(s) ?? 0) + 1);
-    deg.set(t, (deg.get(t) ?? 0) + 1);
-  }
-  type Scored = { s: string; t: string; score: number };
-  const scored: Scored[] = deduped.map((l) => {
-    const s = linkEndpoint(l, "source");
-    const t = linkEndpoint(l, "target");
-    return { s, t, score: Math.max(deg.get(s) ?? 0, deg.get(t) ?? 0) };
-  });
-  scored.sort((a, b) => a.score - b.score);
-  const count = new Map<string, number>();
-  const kept: GraphLink[] = [];
-  for (const e of scored) {
-    const cs = count.get(e.s) ?? 0;
-    const ct = count.get(e.t) ?? 0;
-    if (cs >= maxPerNode || ct >= maxPerNode) continue;
-    kept.push({ source: e.s, target: e.t });
-    count.set(e.s, cs + 1);
-    count.set(e.t, ct + 1);
-  }
-  return kept;
-}
-
 export function enrichGraphData(raw: GraphData): GraphData {
   const deg = new Map<string, number>();
   for (const l of raw.links) {
@@ -82,12 +48,9 @@ export function enrichGraphData(raw: GraphData): GraphData {
 export type PrepareGraphOptions = {
   /** Restore x,y after refetch to avoid a hard layout reset */
   snapshot?: Map<string, { x: number; y: number }>;
-  /** Max edges per node after dedupe (reduces tag-clique density) */
-  maxLinksPerNode?: number;
 };
 
 export function prepareGraphData(raw: GraphData, options: PrepareGraphOptions = {}): GraphData {
-  const maxLinks = options.maxLinksPerNode ?? 12;
   const snap = options.snapshot;
 
   const nodes = raw.nodes.map((n) => {
@@ -108,40 +71,84 @@ export function prepareGraphData(raw: GraphData, options: PrepareGraphOptions = 
     source: linkEndpoint(l, "source"),
     target: linkEndpoint(l, "target"),
   }));
-  const capped = capLinksPerNode(normalizedLinks, maxLinks);
-  return enrichGraphData({ nodes, links: capped });
+  return enrichGraphData({ nodes, links: dedupeLinks(normalizedLinks) });
 }
 
-/** Directly connected node ids (by wiki title id). */
-export function neighborNodeIds(data: GraphData, nodeId: string): string[] {
-  const out = new Set<string>();
-  for (const l of data.links) {
-    const s = linkEndpoint(l, "source");
-    const t = linkEndpoint(l, "target");
-    if (s === nodeId) out.add(t);
-    if (t === nodeId) out.add(s);
+export type DirectedRelationship = {
+  source: string;
+  target: string;
+};
+
+export type RelationshipSets = {
+  prerequisiteIds: Set<string>;
+  dependentIds: Set<string>;
+  neighborIds: Set<string>;
+  prerequisiteLinkKeys: Set<string>;
+  dependentLinkKeys: Set<string>;
+  linkKeys: Set<string>;
+};
+
+/**
+ * Classify direct relationships using the graph's canonical direction:
+ * source/dependent -> target/prerequisite.
+ */
+export function relationshipSets(
+  relationships: readonly DirectedRelationship[],
+  focusId: string | null,
+): RelationshipSets {
+  const prerequisiteIds = new Set<string>();
+  const dependentIds = new Set<string>();
+  const prerequisiteLinkKeys = new Set<string>();
+  const dependentLinkKeys = new Set<string>();
+  const linkKeys = new Set<string>();
+  if (!focusId) {
+    return {
+      prerequisiteIds,
+      dependentIds,
+      neighborIds: new Set(),
+      prerequisiteLinkKeys,
+      dependentLinkKeys,
+      linkKeys,
+    };
   }
-  return [...out];
+
+  for (const relationship of relationships) {
+    const source = relationship.source;
+    const target = relationship.target;
+    if (source === target) continue;
+    const key = linkKey(source, target);
+    if (source === focusId) {
+      prerequisiteIds.add(target);
+      prerequisiteLinkKeys.add(key);
+      linkKeys.add(key);
+    } else if (target === focusId) {
+      dependentIds.add(source);
+      dependentLinkKeys.add(key);
+      linkKeys.add(key);
+    }
+  }
+
+  return {
+    prerequisiteIds,
+    dependentIds,
+    neighborIds: new Set([focusId, ...prerequisiteIds, ...dependentIds]),
+    prerequisiteLinkKeys,
+    dependentLinkKeys,
+    linkKeys,
+  };
 }
 
 export function neighborSets(
   data: GraphData,
   focusId: string | null,
-): { nodes: Set<string>; linkKeys: Set<string> } {
-  const nodes = new Set<string>();
-  const linkKeys = new Set<string>();
-  if (!focusId) return { nodes, linkKeys };
-  nodes.add(focusId);
-  for (const l of data.links) {
-    const s = typeof l.source === "string" ? l.source : l.source.id;
-    const t = typeof l.target === "string" ? l.target : l.target.id;
-    if (s === focusId || t === focusId) {
-      nodes.add(s);
-      nodes.add(t);
-      linkKeys.add(linkKey(s, t));
-    }
-  }
-  return { nodes, linkKeys };
+): RelationshipSets {
+  return relationshipSets(
+    data.links.map((link) => ({
+      source: linkEndpoint(link, "source"),
+      target: linkEndpoint(link, "target"),
+    })),
+    focusId,
+  );
 }
 
 /** Visual radius for canvas overlays (matches compact “note” dots) */

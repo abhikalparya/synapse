@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { neighborNodeIds } from "../graphUtils";
-import type { GraphData, GraphNode, TopicStatus, Zone } from "../types";
+import { relationshipSets } from "../graphUtils";
+import type { Dependency, GraphNode, TopicStatus, Zone } from "../types";
 
 const STATUS_LABEL: Record<TopicStatus, string> = {
   not_started: "Not started",
@@ -25,7 +25,10 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 type Props = {
-  graphData: GraphData;
+  nodes: GraphNode[];
+  dependencies: Dependency[];
+  dependenciesLoading: boolean;
+  dependenciesError: string | null;
   node: GraphNode | null;
   onClose: () => void;
   onNavigateToNode: (node: GraphNode) => void;
@@ -35,7 +38,10 @@ type Props = {
 };
 
 export function NodeDetailsPanel({
-  graphData,
+  nodes,
+  dependencies,
+  dependenciesLoading,
+  dependenciesError,
   node,
   onClose,
   onNavigateToNode,
@@ -43,12 +49,23 @@ export function NodeDetailsPanel({
   onTopicChanged,
   zones,
 }: Props) {
-  const related = useMemo(() => {
-    if (!node) return [];
-    const ids = neighborNodeIds(graphData, node.id);
-    const byId = new Map(graphData.nodes.map((candidate) => [candidate.id, candidate]));
-    return ids.map((id) => byId.get(id)).filter((candidate): candidate is GraphNode => Boolean(candidate));
-  }, [graphData, node]);
+  const { prerequisites, dependents } = useMemo(() => {
+    if (!node) return { prerequisites: [], dependents: [] };
+    const relationships = relationshipSets(
+      dependencies.map((dependency) => ({
+        source: dependency.from_topic_id,
+        target: dependency.to_topic_id,
+      })),
+      node.id,
+    );
+    const byId = new Map(nodes.map((candidate) => [candidate.id, candidate]));
+    const resolve = (ids: Set<string>) =>
+      [...ids].map((id) => byId.get(id)).filter((candidate): candidate is GraphNode => Boolean(candidate));
+    return {
+      prerequisites: resolve(relationships.prerequisiteIds),
+      dependents: resolve(relationships.dependentIds),
+    };
+  }, [dependencies, node, nodes]);
   const [zoneBusy, setZoneBusy] = useState(false);
   const [zoneError, setZoneError] = useState<string | null>(null);
   const mountedRef = useRef(false);
@@ -139,10 +156,14 @@ export function NodeDetailsPanel({
             </section>
 
             <section className="node-card__section node-card__section--related">
-              <h4>Connected topics</h4>
-              {related.length ? (
+              <h4>Prerequisites</h4>
+              {dependenciesLoading ? (
+                <p className="sidebar__muted">Loading relationships…</p>
+              ) : dependenciesError ? (
+                <p className="modal__error">{dependenciesError}</p>
+              ) : prerequisites.length ? (
                 <ul className="node-card__related">
-                  {related.map((relatedNode) => (
+                  {prerequisites.map((relatedNode) => (
                     <li key={relatedNode.id}>
                       <button type="button" className="node-card__related-btn" onClick={() => onNavigateToNode(relatedNode)}>
                         {relatedNode.title ?? relatedNode.id}
@@ -151,7 +172,28 @@ export function NodeDetailsPanel({
                   ))}
                 </ul>
               ) : (
-                <p className="sidebar__muted">No connected topics.</p>
+                <p className="sidebar__muted">No prerequisites.</p>
+              )}
+            </section>
+
+            <section className="node-card__section node-card__section--related">
+              <h4>Dependents</h4>
+              {dependenciesLoading ? (
+                <p className="sidebar__muted">Loading relationships…</p>
+              ) : dependenciesError ? (
+                <p className="modal__error">{dependenciesError}</p>
+              ) : dependents.length ? (
+                <ul className="node-card__related">
+                  {dependents.map((relatedNode) => (
+                    <li key={relatedNode.id}>
+                      <button type="button" className="node-card__related-btn" onClick={() => onNavigateToNode(relatedNode)}>
+                        {relatedNode.title ?? relatedNode.id}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="sidebar__muted">No dependents.</p>
               )}
             </section>
           </article>
