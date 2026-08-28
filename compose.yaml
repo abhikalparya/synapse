@@ -3,31 +3,16 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    env_file:
+      - path: ./backend/.env
+        required: false
+      - path: ./.env
+        required: false
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-}
-      OPENAI_ORGANIZATION: ${OPENAI_ORGANIZATION:-}
-      OPENAI_ORG_ID: ${OPENAI_ORG_ID:-}
-      OPENAI_PROJECT: ${OPENAI_PROJECT:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-}
-      OPENAI_COMPATIBLE_BASE_URL: ${OPENAI_COMPATIBLE_BASE_URL:-}
-      OPENAI_COMPATIBLE_MODEL: ${OPENAI_COMPATIBLE_MODEL:-}
-      OPENAI_COMPATIBLE_API_KEY: ${OPENAI_COMPATIBLE_API_KEY:-}
-      ROADMAP_REVIEW_CONFIDENCE_THRESHOLD: ${ROADMAP_REVIEW_CONFIDENCE_THRESHOLD:-0.6}
-      SYNAPSE_GENERATION_STRATEGY: ${SYNAPSE_GENERATION_STRATEGY:-baseline}
-      SYNAPSE_CURRICULUM_DOMAIN: ${SYNAPSE_CURRICULUM_DOMAIN:-}
-      SYNAPSE_DB_PATH: /app/backend/data/synapse.db
-      SYNAPSE_PROPOSAL_EVENTS_PATH: /app/backend/data/proposal_events.jsonl
-      SYNAPSE_LOG_LLM_USAGE: ${SYNAPSE_LOG_LLM_USAGE:-1}
-      QUIZ_PASS_THRESHOLD: ${QUIZ_PASS_THRESHOLD:-0.7}
-      QUIZ_GATE_COMPLETION: ${QUIZ_GATE_COMPLETION:-1}
-      SYNAPSE_MAX_RECOVERY_CANDIDATES: ${SYNAPSE_MAX_RECOVERY_CANDIDATES:-}
-      SYNAPSE_INGEST_PROMPT_VARIANT: ${SYNAPSE_INGEST_PROMPT_VARIANT:-}
-      SYNAPSE_EDGE_CLASSIFIER_PROMPT: ${SYNAPSE_EDGE_CLASSIFIER_PROMPT:-}
+      - SYNAPSE_DB_PATH=/app/backend/data/synapse.db
+      - SYNAPSE_PROPOSAL_EVENTS_PATH=/app/backend/data/proposal_events.jsonl
     volumes:
       - synapse_data:/app/backend/data
       - synapse_raw_notes:/app/backend/raw_notes

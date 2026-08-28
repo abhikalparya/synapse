@@ -52,6 +52,18 @@ uvicorn app.main:app --reload --port 8000
 cd frontend && npm install && npm run dev
 ```
 
+### Docker (local manual testing)
+
+Docker Compose reads optional provider settings from either `.env` in the repository
+root or `backend/.env` at container runtime. Copy `.env.example` to one of those
+locations, set the provider credentials if needed, then run:
+
+```bash
+docker compose up --build
+```
+
+The application starts without provider credentials; only AI actions require them.
+
 Product ingest default is always **baseline**. Opt into domain prior explicitly:
 
 ```bash

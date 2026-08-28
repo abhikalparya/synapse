@@ -41,6 +41,13 @@ export type GraphData = {
   links: GraphLink[];
 };
 
+export type Dependency = {
+  id: string;
+  from_topic_id: string;
+  to_topic_id: string;
+  created_at: string | null;
+};
+
 export type RecentNode = {
   id: string;
   title: string;

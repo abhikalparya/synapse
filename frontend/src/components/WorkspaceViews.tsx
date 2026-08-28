@@ -79,7 +79,7 @@ export function LearnWorkspace({ nodes, onOpenTopic }: LearnProps) {
       <header className="workspace-view__header">
         <p className="workspace-view__eyebrow">Learn</p>
         <h1 id="learn-title">Your topics</h1>
-        <p>Choose a topic to open it in Explore. A fuller topic learning workspace will build on this entry point.</p>
+        <p>Choose a topic to open its summary, learning context, resources, notes, questions, and quiz.</p>
       </header>
 
       {!sortedNodes.length ? (

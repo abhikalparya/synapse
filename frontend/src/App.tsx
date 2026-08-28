@@ -6,9 +6,19 @@ import { GraphSearchBar } from "./components/GraphSearchBar";
 import { KnowledgeGraph } from "./components/KnowledgeGraph";
 import { NodeDetailsPanel } from "./components/NodeDetailsPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { TopicLearningWorkspace } from "./components/TopicLearningWorkspace";
 import { HomeWorkspace, LearnWorkspace, ReviewWorkspace } from "./components/WorkspaceViews";
 import { linkKey, prepareGraphData } from "./graphUtils";
-import type { ApplyResponse, GraphData, GraphNode, PathResponse, RollbackResponse, StatsResponse, Zone } from "./types";
+import type {
+  ApplyResponse,
+  Dependency,
+  GraphData,
+  GraphNode,
+  PathResponse,
+  RollbackResponse,
+  StatsResponse,
+  Zone,
+} from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -47,6 +57,10 @@ export default function App() {
   const [undoBusy, setUndoBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [zones, setZones] = useState<Zone[]>([]);
+  const [dependencies, setDependencies] = useState<Dependency[]>([]);
+  const [dependenciesLoading, setDependenciesLoading] = useState(true);
+  const [dependenciesError, setDependenciesError] = useState<string | null>(null);
+  const [learningTopicId, setLearningTopicId] = useState<string | null>(null);
 
   const graphAreaRef = useRef<HTMLDivElement>(null);
   const focusCameraNonceRef = useRef(0);
@@ -69,7 +83,7 @@ export default function App() {
     setSelectedNode((prev) => {
       if (!prev) return prev;
       const next = graphData.nodes.find((n) => n.id === prev.id);
-      return next ?? prev;
+      return next ?? null;
     });
   }, [graphData]);
 
@@ -116,11 +130,25 @@ export default function App() {
     }
   }, []);
 
+  const refreshDependencies = useCallback(async () => {
+    setDependenciesLoading(true);
+    setDependenciesError(null);
+    try {
+      setDependencies(await fetchJson<Dependency[]>("/dependencies"));
+    } catch (e) {
+      setDependencies([]);
+      setDependenciesError(e instanceof Error ? e.message : "Failed to load relationships");
+    } finally {
+      setDependenciesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshGraph({ silent: false, preserveLayout: false });
     void refreshStats();
     void refreshZones();
-  }, [refreshGraph, refreshStats, refreshZones]);
+    void refreshDependencies();
+  }, [refreshDependencies, refreshGraph, refreshStats, refreshZones]);
 
   useEffect(() => {
     const el = graphAreaRef.current;
@@ -168,9 +196,10 @@ export default function App() {
     async (result: ApplyResponse) => {
       await refreshGraph({ silent: true, preserveLayout: true });
       await refreshStats();
+      await refreshDependencies();
       setToast(`Applied: ${result.created_topics.length} topic(s), ${result.created_dependencies.length} dependency(ies)`);
     },
-    [refreshGraph, refreshStats],
+    [refreshDependencies, refreshGraph, refreshStats],
   );
 
   const handleTopicChanged = useCallback(async () => {
@@ -204,6 +233,7 @@ export default function App() {
       });
       await refreshGraph({ silent: true, preserveLayout: false });
       await refreshStats();
+      await refreshDependencies();
       setSelectedNode(null);
       setToast(`Rolled back to snapshot ${res.snapshot_id}`);
     } catch (e) {
@@ -211,12 +241,18 @@ export default function App() {
     } finally {
       setUndoBusy(false);
     }
-  }, [refreshGraph, refreshStats]);
+  }, [refreshDependencies, refreshGraph, refreshStats]);
 
   const resolveNodeById = useCallback(
     (id: string) => graphData.nodes.find((n) => n.id === id) ?? null,
     [graphData.nodes],
   );
+  const learningTopic = learningTopicId ? resolveNodeById(learningTopicId) : null;
+
+  useEffect(() => {
+    if (!learningTopicId || graphLoading) return;
+    if (!learningTopic) setLearningTopicId(null);
+  }, [graphLoading, learningTopic, learningTopicId]);
 
   const bumpFocusCamera = useCallback((nodeId: string) => {
     focusCameraNonceRef.current += 1;
@@ -256,6 +292,15 @@ export default function App() {
     [bumpFocusCamera, resolveNodeById],
   );
 
+  const openTopicInLearn = useCallback(
+    (id: string) => {
+      if (!resolveNodeById(id)) return;
+      setLearningTopicId(id);
+      setActiveView("learn");
+    },
+    [resolveNodeById],
+  );
+
   const showGraph = graphSize.w > 0 && graphSize.h > 0;
   const hasNodes = graphData.nodes.length > 0;
   const showKnowledgeGraph = showGraph && hasNodes;
@@ -288,6 +333,7 @@ export default function App() {
               node={selectedNode}
               onClose={() => setSelectedNode(null)}
               onNavigateToNode={navigateToNode}
+              onOpenInLearn={openTopicInLearn}
               onTopicChanged={() => void handleTopicChanged()}
               zones={zones}
             />
@@ -303,7 +349,25 @@ export default function App() {
               onOpenTopic={openTopicInExplore}
             />
           ) : null}
-          {activeView === "learn" ? <LearnWorkspace nodes={graphData.nodes} onOpenTopic={openTopicInExplore} /> : null}
+          {activeView === "learn" ? (
+            learningTopic ? (
+              <TopicLearningWorkspace
+                key={learningTopic.id}
+                topic={learningTopic}
+                nodes={graphData.nodes}
+                dependencies={dependencies}
+                dependenciesLoading={dependenciesLoading}
+                dependenciesError={dependenciesError}
+                zones={zones}
+                onBack={() => setLearningTopicId(null)}
+                onOpenTopic={openTopicInLearn}
+                onOpenExplore={openTopicInExplore}
+                onTopicChanged={() => void handleTopicChanged()}
+              />
+            ) : (
+              <LearnWorkspace nodes={graphData.nodes} onOpenTopic={openTopicInLearn} />
+            )
+          ) : null}
           {activeView === "review" ? <ReviewWorkspace onOpenAiOperations={() => setAiModalOpen(true)} /> : null}
           {activeView === "explore" ? (
             <>
