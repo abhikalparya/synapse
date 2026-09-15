@@ -1,5 +1,6 @@
-import { useCallback, useId, useState, type FormEvent } from "react";
+import { useCallback, useId, useRef, useState, type FormEvent } from "react";
 import type { ApplyResponse, AuditReport, GraphNode, Proposal } from "../types";
+import { FileTypeIcon, fileExt } from "./FileTypeIcon";
 import { ProposalDetails } from "./ProposalDetails";
 
 type Mode = "ingest" | "expand" | "audit" | "reshape" | "obsidian";
@@ -38,11 +39,38 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
+const INGEST_ACCEPT =
+  ".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const INGEST_ACCEPT_EXT = new Set([".txt", ".md", ".pdf", ".docx"]);
+
+function fileKey(f: File): string {
+  return `${f.name}:${f.size}:${f.lastModified}`;
+}
+
+type IngestUploadJson = {
+  status: "ok" | "warning";
+  filename?: string | null;
+};
+
+type BatchIngestItem = {
+  filename: string;
+  status: "ok" | "warning" | "error";
+  saved_filename?: string | null;
+  detail?: string | null;
+};
+
+type BatchIngestResponse = {
+  items: BatchIngestItem[];
+};
+
 export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded }: Props) {
   const idBase = useId();
   const [mode, setMode] = useState<Mode>("ingest");
 
   const [goal, setGoal] = useState("");
+  const [ingestFiles, setIngestFiles] = useState<File[]>([]);
+  const [ingestDragOver, setIngestDragOver] = useState(false);
+  const ingestFileInputRef = useRef<HTMLInputElement>(null);
   const [expandTopicId, setExpandTopicId] = useState("");
   const [expandInstructions, setExpandInstructions] = useState("");
   const [reshapeTopicIds, setReshapeTopicIds] = useState<Set<string>>(new Set());
@@ -57,6 +85,9 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
   const resetAll = useCallback(() => {
     setMode("ingest");
     setGoal("");
+    setIngestFiles([]);
+    setIngestDragOver(false);
+    if (ingestFileInputRef.current) ingestFileInputRef.current.value = "";
     setExpandTopicId("");
     setExpandInstructions("");
     setReshapeTopicIds(new Set());
@@ -81,21 +112,84 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
       setError(null);
       setProposal(null);
       setAuditReport(null);
+      setIngestFiles([]);
+      setIngestDragOver(false);
+      if (ingestFileInputRef.current) ingestFileInputRef.current.value = "";
     },
     [busy],
   );
 
+  const mergeValidatedIngestFiles = useCallback((existing: File[], incoming: File[]) => {
+    const rejected: string[] = [];
+    const seen = new Set(existing.map(fileKey));
+    const next = [...existing];
+    for (const f of incoming) {
+      const ext = fileExt(f.name);
+      if (!INGEST_ACCEPT_EXT.has(ext)) {
+        rejected.push(f.name);
+        continue;
+      }
+      const k = fileKey(f);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      next.push(f);
+    }
+    return { next, rejected };
+  }, []);
+
+  const addIngestFiles = useCallback(
+    (list: FileList | File[] | null) => {
+      if (!list?.length) return;
+      const incoming = Array.from(list as FileList);
+      setIngestFiles((prev) => {
+        const { next, rejected } = mergeValidatedIngestFiles(prev, incoming);
+        if (rejected.length) {
+          setError(`Skipped unsupported type: ${rejected.slice(0, 4).join(", ")}${rejected.length > 4 ? "…" : ""} (.txt, .md, .pdf, .docx only)`);
+        } else {
+          setError(null);
+        }
+        return next;
+      });
+      if (ingestFileInputRef.current) ingestFileInputRef.current.value = "";
+    },
+    [mergeValidatedIngestFiles],
+  );
+
+  const removeIngestFileAt = useCallback((index: number) => {
+    setIngestFiles((prev) => prev.filter((_, i) => i !== index));
+    setError(null);
+  }, []);
+
+  async function uploadIngestFiles(files: File[]): Promise<string[]> {
+    if (files.length === 1) {
+      const form = new FormData();
+      form.append("file", files[0], files[0].name);
+      const up = await fetchJson<IngestUploadJson>("/ingest/upload", { method: "POST", body: form });
+      return up.filename ? [up.filename] : [];
+    }
+    const form = new FormData();
+    for (const f of files) form.append("files", f, f.name);
+    const batch = await fetchJson<BatchIngestResponse>("/ingest/upload/batch", { method: "POST", body: form });
+    const ok = batch.items.filter((i) => i.status !== "error");
+    const failed = batch.items.filter((i) => i.status === "error");
+    if (ok.length === 0) {
+      throw new Error(failed.map((i) => `${i.filename}: ${i.detail ?? "failed"}`).join("; ") || "No files could be saved");
+    }
+    return ok.map((i) => i.saved_filename).filter((n): n is string => Boolean(n));
+  }
+
   async function handleIngest(e: FormEvent) {
     e.preventDefault();
     const trimmed = goal.trim();
-    if (!trimmed || busy) return;
+    if ((!trimmed && ingestFiles.length === 0) || busy) return;
     setBusy(true);
     setError(null);
     try {
+      const filenames = ingestFiles.length ? await uploadIngestFiles(ingestFiles) : [];
       const result = await fetchJson<Proposal>("/ai/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: trimmed }),
+        body: JSON.stringify({ goal: trimmed || null, filenames: filenames.length ? filenames : null }),
       });
       setProposal(result);
     } catch (err) {
@@ -274,8 +368,124 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
 
           {mode === "ingest" && !proposal ? (
             <form onSubmit={handleIngest}>
+              <label className="modal__label" id={`${idBase}-ingest-upload-label`}>
+                Files (optional)
+              </label>
+              <input
+                ref={ingestFileInputRef}
+                id={`${idBase}-ingest-file`}
+                type="file"
+                className="visually-hidden"
+                accept={INGEST_ACCEPT}
+                multiple
+                disabled={busy}
+                tabIndex={-1}
+                aria-labelledby={`${idBase}-ingest-upload-label`}
+                onChange={(e) => addIngestFiles(e.target.files)}
+              />
+              <div
+                className={`ingest-drop ${ingestDragOver ? "ingest-drop--active" : ""} ${ingestFiles.length ? "ingest-drop--has-file" : ""}`}
+                role="group"
+                aria-label="Drop documents here or browse to add files"
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIngestDragOver(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIngestDragOver(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIngestDragOver(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIngestDragOver(false);
+                  addIngestFiles(e.dataTransfer.files);
+                }}
+              >
+                {ingestFiles.length === 0 ? (
+                  <div
+                    className="ingest-drop__empty"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => !busy && ingestFileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      if (!busy) ingestFileInputRef.current?.click();
+                    }}
+                  >
+                    <FileTypeIcon ext="" size="lg" placeholder />
+                    <p className="ingest-drop__title">Drop files here</p>
+                    <p className="ingest-drop__sub">.txt · .md · .pdf · .docx — multiple files OK</p>
+                    <button
+                      type="button"
+                      className="ingest-drop__browse"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        ingestFileInputRef.current?.click();
+                      }}
+                    >
+                      Browse files
+                    </button>
+                  </div>
+                ) : (
+                  <div className="ingest-drop__multi" onClick={(e) => e.stopPropagation()}>
+                    <ul className="ingest-file-list" aria-label="Selected files">
+                      {ingestFiles.map((f, i) => (
+                        <li key={fileKey(f)} className="ingest-file-list__row">
+                          <FileTypeIcon ext={fileExt(f.name)} size="md" />
+                          <div className="ingest-file-list__meta">
+                            <span className="ingest-file-list__name" title={f.name}>
+                              {f.name}
+                            </span>
+                            <span className="ingest-file-list__sub">{(f.size / 1024).toFixed(1)} KB</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="ingest-drop__clear"
+                            onClick={() => removeIngestFileAt(i)}
+                            disabled={busy}
+                            aria-label={`Remove ${f.name}`}
+                          >
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="ingest-drop__multi-actions">
+                      <button
+                        type="button"
+                        className="ingest-drop__change"
+                        onClick={() => ingestFileInputRef.current?.click()}
+                        disabled={busy}
+                      >
+                        Add more files
+                      </button>
+                      <button
+                        type="button"
+                        className="ingest-drop__clear-all"
+                        onClick={() => {
+                          setIngestFiles([]);
+                          if (ingestFileInputRef.current) ingestFileInputRef.current.value = "";
+                        }}
+                        disabled={busy}
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <label className="modal__label" htmlFor={`${idBase}-goal`}>
-                Learning goal
+                Learning goal{ingestFiles.length ? " (optional)" : ""}
               </label>
               <textarea
                 id={`${idBase}-goal`}
@@ -291,7 +501,11 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
                 <button type="button" className="modal__btn modal__btn--ghost" onClick={handleClose} disabled={busy}>
                   Cancel
                 </button>
-                <button type="submit" className="modal__btn modal__btn--primary" disabled={busy || !goal.trim()}>
+                <button
+                  type="submit"
+                  className="modal__btn modal__btn--primary"
+                  disabled={busy || (!goal.trim() && ingestFiles.length === 0)}
+                >
                   {busy ? "Running…" : "Ingest"}
                 </button>
               </div>
