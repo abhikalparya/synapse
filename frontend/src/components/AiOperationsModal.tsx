@@ -50,17 +50,24 @@ function fileKey(f: File): string {
 type IngestUploadJson = {
   status: "ok" | "warning";
   filename?: string | null;
+  warnings?: string[];
 };
 
 type BatchIngestItem = {
   filename: string;
   status: "ok" | "warning" | "error";
   saved_filename?: string | null;
+  warnings?: string[];
   detail?: string | null;
 };
 
 type BatchIngestResponse = {
   items: BatchIngestItem[];
+};
+
+type UploadResult = {
+  filenames: string[];
+  warnings: string[];
 };
 
 export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded }: Props) {
@@ -79,6 +86,7 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ingestWarnings, setIngestWarnings] = useState<string[]>([]);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
 
@@ -87,6 +95,7 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
     setGoal("");
     setIngestFiles([]);
     setIngestDragOver(false);
+    setIngestWarnings([]);
     if (ingestFileInputRef.current) ingestFileInputRef.current.value = "";
     setExpandTopicId("");
     setExpandInstructions("");
@@ -114,6 +123,7 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
       setAuditReport(null);
       setIngestFiles([]);
       setIngestDragOver(false);
+      setIngestWarnings([]);
       if (ingestFileInputRef.current) ingestFileInputRef.current.value = "";
     },
     [busy],
@@ -160,12 +170,14 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
     setError(null);
   }, []);
 
-  async function uploadIngestFiles(files: File[]): Promise<string[]> {
+  async function uploadIngestFiles(files: File[]): Promise<UploadResult> {
     if (files.length === 1) {
       const form = new FormData();
       form.append("file", files[0], files[0].name);
       const up = await fetchJson<IngestUploadJson>("/ingest/upload", { method: "POST", body: form });
-      return up.filename ? [up.filename] : [];
+      const warnings =
+        up.status === "warning" ? [`${files[0].name}: ${up.warnings?.join("; ") || "nothing saved"}`] : [];
+      return { filenames: up.filename ? [up.filename] : [], warnings };
     }
     const form = new FormData();
     for (const f of files) form.append("files", f, f.name);
@@ -175,7 +187,10 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
     if (ok.length === 0) {
       throw new Error(failed.map((i) => `${i.filename}: ${i.detail ?? "failed"}`).join("; ") || "No files could be saved");
     }
-    return ok.map((i) => i.saved_filename).filter((n): n is string => Boolean(n));
+    const warnings = batch.items
+      .filter((i) => i.status !== "ok")
+      .map((i) => `${i.filename}: ${i.status === "error" ? (i.detail ?? "failed") : i.warnings?.join("; ") || "nothing saved"}`);
+    return { filenames: ok.map((i) => i.saved_filename).filter((n): n is string => Boolean(n)), warnings };
   }
 
   async function handleIngest(e: FormEvent) {
@@ -184,8 +199,12 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
     if ((!trimmed && ingestFiles.length === 0) || busy) return;
     setBusy(true);
     setError(null);
+    setIngestWarnings([]);
     try {
-      const filenames = ingestFiles.length ? await uploadIngestFiles(ingestFiles) : [];
+      const { filenames, warnings } = ingestFiles.length
+        ? await uploadIngestFiles(ingestFiles)
+        : { filenames: [], warnings: [] };
+      setIngestWarnings(warnings);
       const result = await fetchJson<Proposal>("/ai/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -365,6 +384,14 @@ export function AiOperationsModal({ open, onClose, nodes, onApplied, onDiscarded
               </button>
             ))}
           </div>
+
+          {mode === "ingest" && ingestWarnings.length > 0 ? (
+            <div className="modal__hint" role="status">
+              {ingestWarnings.map((w) => (
+                <p key={w}>{w}</p>
+              ))}
+            </div>
+          ) : null}
 
           {mode === "ingest" && !proposal ? (
             <form onSubmit={handleIngest}>
