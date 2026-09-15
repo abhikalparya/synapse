@@ -215,6 +215,24 @@ export type AuditReport = {
   structural_findings?: AuditFinding[];
 };
 
+export type LintIssueType = "missing_summary" | "duplicate_title" | "self_dependency" | "orphan_dependency" | "cycle";
+
+/**
+ * Shape varies by `type`: `topic` is a real topic id (missing_summary, self_dependency);
+ * `topics` is a list of real topic ids for `cycle` but a list of duplicate TITLE strings
+ * (not ids) for `duplicate_title`; `orphan_dependency` has neither, only `detail`.
+ */
+export type LintIssue = {
+  type: LintIssueType;
+  topic?: string | null;
+  topics?: string[] | null;
+  detail?: string | null;
+};
+
+export type LintResponse = {
+  issues: LintIssue[];
+};
+
 export type ArtifactType = "note" | "code_snippet" | "summary" | "generated_output" | "qa_log";
 
 /** Something the learner PRODUCED while studying a topic -- distinct from Resource

@@ -631,6 +631,42 @@
   height: 100%;
 }
 
+.health-panel-wrap {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 1.1rem 1.2rem;
+}
+
+.explore-tabs {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.2rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.explore-tab {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border-radius: calc(var(--radius-sm) - 4px);
+  cursor: pointer;
+}
+
+.explore-tab:hover {
+  color: var(--text);
+}
+
+.explore-tab--active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
 .graph-wrap::after {
   content: "";
   position: absolute;
@@ -3051,6 +3087,80 @@
 .audit-finding--duplicate_title,
 .audit-finding--thin_topic {
   border-color: rgba(148, 163, 184, 0.28);
+}
+
+.audit-finding--cycle,
+.audit-finding--self_dependency,
+.audit-finding--orphan_dependency {
+  border-color: rgba(251, 191, 36, 0.32);
+  background: rgba(251, 191, 36, 0.06);
+}
+
+.health-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.health-panel__group-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.health-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.health-finding__link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.health-finding__link:hover {
+  opacity: 0.85;
+}
+
+.health-finding__chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.health-finding__arrow {
+  color: var(--text-muted);
+}
+
+.health-finding__duplicates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.health-finding__duplicate-row {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.health-finding__duplicate-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.78rem;
 }
 
 .audit-degraded {
